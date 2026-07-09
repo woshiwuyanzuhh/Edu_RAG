@@ -1,0 +1,85 @@
+# edu_rag v2.0 — 全栈部署
+# 一键启动: docker compose -f docker/docker-compose.yml up -d
+
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - MYSQL__HOST=mysql
+      - MYSQL__PORT=3306
+      - MYSQL__USER=root
+      - MYSQL__PASSWORD=${MYSQL_PASSWORD:-edu_rag_2024}
+      - MYSQL__DATABASE=edu_rag
+      - REDIS__HOST=redis
+      - REDIS__PORT=6379
+      - VECTOR_STORE__PROVIDER=chroma
+      - VECTOR_STORE__CHROMA_PATH=/app/data/chroma
+      - EMBEDDING__PROVIDER=api
+      - EMBEDDING__API_BASE_URL=http://ollama:11434/v1
+      - EMBEDDING__MODEL=bge-m3
+      - EMBEDDING__API_KEY=ollama
+      - LLM__API_KEY=${OPENAI_API_KEY}
+      - LLM__BASE_URL=${OPENAI_BASE_URL:-https://api.deepseek.com/v1}
+      - LLM__MODEL=${LLM_MODEL:-deepseek-chat}
+      - APP__API_KEY=${APP_API_KEY:-}
+    volumes:
+      - ../data:/app/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-edu_rag_2024}
+      MYSQL_DATABASE: edu_rag
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        sleep 5
+        ollama pull bge-m3
+        wait
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+  ollama_data:

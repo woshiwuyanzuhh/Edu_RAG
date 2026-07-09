@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}智能题库 - edu_rag{% endblock %}
+{% block content %}
+{% set active_page = 'exam' %}
+
+<h2 class="mb-4"><i class="bi bi-pencil-square"></i> 智能题库</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <!-- 出题面板 -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-light"><h5 class="mb-0">🎯 生成题目</h5></div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">知识库</label>
+                    <select id="kbSelect" class="form-select">
+                        <option value="">-- 请选择知识库 --</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">题型</label>
+                    <select id="questionType" class="form-select">
+                        <option value="choice">选择题</option>
+                        <option value="essay">简答题</option>
+                        <option value="tf">判断题</option>
+                        <option value="mixed" selected>混合题型</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">题目数量: <strong id="countLabel">5</strong></label>
+                    <input type="range" class="form-range" id="questionCount" min="1" max="20" value="5"
+                           oninput="document.getElementById('countLabel').textContent = this.value">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">难度</label>
+                    <select id="difficulty" class="form-select">
+                        <option value="easy">简单</option>
+                        <option value="medium" selected>中等</option>
+                        <option value="hard">困难</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary w-100" id="generateBtn" onclick="generateExam()">
+                    <i class="bi bi-magic"></i> 生成题目
+                </button>
+            </div>
+        </div>
+
+        <!-- 考试历史 -->
+        <div class="card shadow-sm mt-3">
+            <div class="card-header bg-light d-flex justify-content-between">
+                <h5 class="mb-0">📋 考试记录</h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadRecords()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <ul id="recordList" class="list-group list-group-flush small">
+                    <li class="list-group-item text-center text-muted">点击刷新加载记录</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- 题目和批改区 -->
+    <div class="col-md-6">
+        <div id="examPanel" class="d-none">
+            <!-- 题目列表 -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light d-flex justify-content-between">
+                    <h5 class="mb-0">📝 题目 (Exam #<span id="examId">-</span>)</h5>
+                    <span class="badge bg-primary" id="examType"></span>
+                </div>
+                <div class="card-body" id="questionList" style="max-height:500px;overflow-y:auto;">
+                </div>
+            </div>
+
+            <!-- 学生答案 -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light"><h5 class="mb-0">✍️ 作答</h5></div>
+                <div class="card-body" id="answerForm"></div>
+            </div>
+
+            <button class="btn btn-success w-100" id="gradeBtn" onclick="submitAnswers()">
+                <i class="bi bi-check-lg"></i> 提交批改
+            </button>
+
+            <!-- 批改结果 -->
+            <div id="gradeResult" class="d-none mt-3"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentQuestions = [];
+let currentExamId = null;
+
+async function loadKBs() {
+    const resp = await fetch('/api/kb');
+    const result = await resp.json();
+    const select = document.getElementById('kbSelect');
+    select.innerHTML = '<option value="">-- 请选择知识库 --</option>' +
+        (result.data.items || result.data.knowledge_bases || []).map(kb =>
+            `<option value="${kb.id}">${escapeHtml(kb.name)}</option>`
+        ).join('');
+}
+
+async function generateExam() {
+    const kbId = document.getElementById('kbSelect').value;
+    if (!kbId) return alert('请选择知识库');
+
+    const btn = document.getElementById('generateBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 生成中...';
+
+    try {
+        const resp = await fetch('/api/exam/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                knowledge_base_id: parseInt(kbId),
+                question_type: document.getElementById('questionType').value,
+                question_count: parseInt(document.getElementById('questionCount').value),
+                difficulty: document.getElementById('difficulty').value
+            })
+        });
+        const result = await resp.json();
+
+        if (result.success && result.data) {
+            currentExamId = result.data.exam_id;
+            currentQuestions = result.data.questions;
+            renderExam(result.data);
+            document.getElementById('examPanel').classList.remove('d-none');
+            document.getElementById('gradeResult').classList.add('d-none');
+        } else {
+            alert(result.message || '出题失败');
+        }
+    } catch(e) {
+        alert('请求失败: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-magic"></i> 生成题目';
+    }
+}
+
+function renderExam(data) {
+    document.getElementById('examId').textContent = data.exam_id;
+    const typeMap = {choice:'选择题',essay:'简答题',tf:'判断题',mixed:'混合'};
+    document.getElementById('examType').textContent = typeMap[data.question_type] || data.question_type;
+
+    const qList = document.getElementById('questionList');
+    const aForm = document.getElementById('answerForm');
+
+    qList.innerHTML = data.questions.map(q => {
+        let body = `<div class="mb-2"><strong>第${q.number}题</strong> <span class="badge bg-secondary">${typeMap[q.type] || q.type}</span></div>`;
+        body += `<p>${escapeHtml(q.stem)}</p>`;
+        if (q.options && q.options.length) {
+            body += '<ul class="list-unstyled">' + q.options.map(o => `<li>${escapeHtml(o)}</li>`).join('') + '</ul>';
+        }
+        body += `<details class="mt-1"><summary class="text-muted small">参考答案</summary><p class="p-2 bg-light rounded small">${escapeHtml(q.answer || '无')}</p></details>`;
+        return `<div class="border rounded p-3 mb-3">${body}</div>`;
+    }).join('');
+
+    aForm.innerHTML = data.questions.map(q => {
+        let input = '';
+        if (q.type === 'choice') {
+            input = `<select class="form-select form-select-sm" data-q="${q.number}">
+                <option value="">-- 选择答案 --</option>
+                ${(q.options || []).map((o, i) => `<option value="${String.fromCharCode(65+i)}">${o}</option>`).join('')}
+            </select>`;
+        } else if (q.type === 'tf') {
+            input = `<select class="form-select form-select-sm" data-q="${q.number}">
+                <option value="">-- 选择 --</option>
+                <option value="正确">正确</option><option value="错误">错误</option>
+            </select>`;
+        } else {
+            input = `<textarea class="form-control form-control-sm" rows="3" data-q="${q.number}" placeholder="请输入你的答案..."></textarea>`;
+        }
+        return `<div class="mb-2"><small class="fw-bold">第${q.number}题</small> ${input}</div>`;
+    }).join('');
+}
+
+async function submitAnswers() {
+    if (!currentExamId) return;
+
+    const inputs = document.querySelectorAll('#answerForm [data-q]');
+    const answers = [];
+    inputs.forEach(el => {
+        answers.push({
+            number: parseInt(el.dataset.q),
+            answer: el.value.trim()
+        });
+    });
+
+    const btn = document.getElementById('gradeBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 批改中...';
+
+    try {
+        const resp = await fetch('/api/exam/grade', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({exam_id: currentExamId, answers})
+        });
+        const result = await resp.json();
+
+        if (result.success && result.data) {
+            renderGradeResult(result.data);
+        } else {
+            alert(result.message || '批改失败');
+        }
+    } catch(e) {
+        alert('请求失败: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> 提交批改';
+    }
+}
+
+function renderGradeResult(data) {
+    const container = document.getElementById('gradeResult');
+    container.classList.remove('d-none');
+
+    const scoreColor = data.total_score >= 90 ? 'success' : data.total_score >= 60 ? 'warning' : 'danger';
+
+    container.innerHTML = `
+        <div class="card shadow-sm">
+            <div class="card-header bg-${scoreColor} text-white">
+                <h5 class="mb-0">📊 批改结果</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <h1 class="display-3 text-${scoreColor}">${data.total_score}<small class="fs-5 text-muted"> / ${data.max_score}</small></h1>
+                    <p class="lead">${escapeHtml(data.summary)}</p>
+                </div>
+                <h6>详细评分：</h6>
+                ${data.details.map(d => `
+                    <div class="border rounded p-2 mb-2">
+                        <strong>第${d.question_number}题</strong>
+                        <span class="badge ${d.is_correct ? 'bg-success' : 'bg-warning'} ms-2">
+                            ${d.score} / ${d.max_score} 分
+                        </span>
+                        <p class="small text-muted mb-0 mt-1">${escapeHtml(d.comment)}</p>
+                    </div>
+                `).join('')}
+            </div>
+        </div>`;
+}
+
+async function loadRecords() {
+    const resp = await fetch('/api/exam/records');
+    const result = await resp.json();
+    const list = document.getElementById('recordList');
+
+    const records = result.data.items || result.data.records || [];
+    if (!records.length) {
+        list.innerHTML = '<li class="list-group-item text-center text-muted">暂无考试记录</li>';
+        return;
+    }
+
+    const statusMap = {draft:'待作答',answered:'待批改',graded:'已批改'};
+    list.innerHTML = records.map(r => `
+        <li class="list-group-item" style="cursor:pointer" onclick="loadRecord(${r.id})">
+            <div class="d-flex justify-content-between">
+                <span>Exam #${r.id}</span>
+                <span class="badge ${r.status === 'graded' ? 'bg-success' : 'bg-secondary'}">${statusMap[r.status] || r.status}</span>
+            </div>
+            <small class="text-muted">${r.question_count}题 · ${r.total_score || '-'}/${r.max_score}分 · ${new Date(r.created_at).toLocaleString('zh-CN')}</small>
+        </li>
+    `).join('');
+}
+
+async function loadRecord(id) {
+    const resp = await fetch(`/api/exam/records/${id}`);
+    const result = await resp.json();
+    if (result.success && result.data) {
+        const d = result.data;
+        currentExamId = d.id;
+        currentQuestions = d.questions;
+        document.getElementById('examPanel').classList.remove('d-none');
+        document.getElementById('gradeResult').classList.add('d-none');
+        renderExam({exam_id: d.id, question_type: d.question_type, questions: d.questions});
+
+        if (d.status === 'graded' && d.scores.length) {
+            renderGradeResult({
+                total_score: d.total_score,
+                max_score: d.max_score,
+                summary: d.total_score >= 90 ? '优秀！' : d.total_score >= 60 ? '良好' : '需要加强',
+                details: d.scores
+            });
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadKBs();
+    loadRecords();
+});
+</script>
+{% endblock %}

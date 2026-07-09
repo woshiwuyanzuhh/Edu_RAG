@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}知识库管理 - edu_rag{% endblock %}
+{% block content %}
+{% set active_page = 'knowledge' %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-folder2"></i> 知识库管理</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createKbModal">
+        <i class="bi bi-plus-circle"></i> 创建知识库
+    </button>
+</div>
+
+<!-- 知识库列表 -->
+<div id="kbList" class="row g-3">
+    <div class="col-12 text-center py-5 text-muted">
+        <i class="bi bi-inbox display-1 d-block mb-3"></i>
+        <p>暂无知识库，点击右上角创建</p>
+    </div>
+</div>
+
+<!-- 创建知识库 Modal -->
+<div class="modal fade" id="createKbModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">创建知识库</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">名称</label>
+                    <input type="text" id="kbName" class="form-control" placeholder="例如：机器学习期中考试">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">描述（可选）</label>
+                    <textarea id="kbDesc" class="form-control" rows="3" placeholder="简要描述知识库内容..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="createKB()">创建</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function loadKBList() {
+    const resp = await fetch('/api/kb');
+    const result = await resp.json();
+    const container = document.getElementById('kbList');
+
+    const kbs = result.data.items || result.data.knowledge_bases || [];
+
+    if (!kbs.length) {
+        container.innerHTML = `<div class="col-12 text-center py-5 text-muted">
+            <i class="bi bi-inbox display-1 d-block mb-3"></i><p>暂无知识库，点击右上角创建</p></div>`;
+        return;
+    }
+
+    container.innerHTML = kbs.map(kb => `
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-folder-fill text-primary"></i> ${escapeHtml(kb.name)}</h5>
+                    <p class="card-text text-muted small">${escapeHtml(kb.description || '暂无描述')}</p>
+                    <p class="small text-muted">
+                        创建: ${new Date(kb.created_at).toLocaleDateString('zh-CN')}
+                    </p>
+                    <div class="btn-group btn-group-sm">
+                        <a href="/upload?kb=${kb.id}" class="btn btn-outline-success btn-sm">上传文档</a>
+                        <button class="btn btn-outline-danger btn-sm" onclick="deleteKB(${kb.id}, '${escapeHtml(kb.name)}')">删除</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function createKB() {
+    const name = document.getElementById('kbName').value.trim();
+    const description = document.getElementById('kbDesc').value.trim();
+    if (!name) return alert('请输入知识库名称');
+
+    const resp = await fetch('/api/kb', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name, description})
+    });
+    const result = await resp.json();
+    if (result.success) {
+        bootstrap.Modal.getInstance('#createKbModal').hide();
+        document.getElementById('kbName').value = '';
+        document.getElementById('kbDesc').value = '';
+        loadKBList();
+    } else {
+        alert(result.message || '创建失败');
+    }
+}
+
+async function deleteKB(id, name) {
+    if (!confirm(`确定删除知识库「${name}」？\n这将同时删除其中所有文档和向量数据！`)) return;
+    await fetch(`/api/kb/${id}`, {method: 'DELETE'});
+    loadKBList();
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+document.addEventListener('DOMContentLoaded', loadKBList);
+</script>
+{% endblock %}

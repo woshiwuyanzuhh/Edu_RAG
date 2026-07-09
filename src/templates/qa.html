@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}智能问答 - edu_rag{% endblock %}
+{% block content %}
+{% set active_page = 'qa' %}
+
+<h2 class="mb-4"><i class="bi bi-chat-dots"></i> 智能问答</h2>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <!-- 设置区 -->
+                <div class="row mb-3">
+                    <div class="col-8">
+                        <select id="kbSelect" class="form-select form-select-sm">
+                            <option value="">全部知识库</option>
+                        </select>
+                    </div>
+                    <div class="col-4 text-end">
+                        <small class="text-muted">检索片段数: </small>
+                        <select id="topK" class="form-select form-select-sm d-inline-block w-auto">
+                            <option>3</option><option selected>5</option><option>10</option><option>15</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 聊天区 -->
+                <div id="chatArea" class="border rounded-3 p-3 mb-3" style="height:400px;overflow-y:auto;background:#fafafa;">
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-robot display-3 d-block mb-3"></i>
+                        <p>在下方输入问题，基于知识库内容获取回答</p>
+                    </div>
+                </div>
+
+                <!-- 输入区 -->
+                <div class="input-group">
+                    <input type="text" id="questionInput" class="form-control" placeholder="输入你的问题...">
+                    <button class="btn btn-primary" onclick="ask()">
+                        <i class="bi bi-send"></i> 发送
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light"><h6 class="mb-0"><i class="bi bi-info-circle"></i> 使用说明</h6></div>
+            <div class="card-body small">
+                <ul class="mb-0">
+                    <li>选择知识库范围提问</li>
+                    <li>系统自动检索相关文档片段</li>
+                    <li>基于检索结果生成回答</li>
+                    <li>回答底部会标注引用来源</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function loadKBs() {
+    const resp = await fetch('/api/kb');
+    const result = await resp.json();
+    const select = document.getElementById('kbSelect');
+    select.innerHTML = '<option value="">全部知识库</option>' +
+        (result.data.items || result.data.knowledge_bases || []).map(kb =>
+            `<option value="${kb.id}">${escapeHtml(kb.name)}</option>`
+        ).join('');
+}
+
+async function ask() {
+    const question = document.getElementById('questionInput').value.trim();
+    if (!question) return;
+
+    const kbId = document.getElementById('kbSelect').value;
+    const topK = parseInt(document.getElementById('topK').value);
+    const chatArea = document.getElementById('chatArea');
+    const input = document.getElementById('questionInput');
+
+    // 添加用户问题
+    chatArea.insertAdjacentHTML('beforeend',
+        `<div class="d-flex justify-content-end mb-3">
+            <div class="bg-primary text-white rounded-3 p-3" style="max-width:80%">
+                <p class="mb-0">${escapeHtml(question)}</p>
+            </div>
+        </div>`);
+
+    // 清除首屏提示
+    if (chatArea.querySelector('.text-center')) {
+        chatArea.innerHTML = '';
+    }
+
+    // 添加 AI 回答占位
+    const answerId = 'answer_' + Date.now();
+    chatArea.insertAdjacentHTML('beforeend',
+        `<div class="d-flex mb-3" id="${answerId}">
+            <div class="bg-white border rounded-3 p-3 markdown-body" style="max-width:80%">
+                <span class="text-muted">思考中...</span>
+            </div>
+        </div>`);
+
+    chatArea.scrollTop = chatArea.scrollHeight;
+    input.value = '';
+
+    try {
+        const resp = await fetch('/api/qa', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({question, knowledge_base_id: kbId || null, top_k: topK})
+        });
+        const result = await resp.json();
+
+        if (result.success && result.data) {
+            const html = marked.parse(result.data.answer || '');
+            const sourcesHtml = result.data.sources?.length ?
+                '<hr class="my-2"><small class="text-muted">📚 参考来源：' +
+                result.data.sources.map(s => `文档#${s.doc_id} (相关度:${(s.score*100).toFixed(0)}%)`).join(' / ') +
+                '</small>' : '';
+
+            document.querySelector(`#${answerId} .markdown-body`).innerHTML = html + sourcesHtml;
+        }
+    } catch(e) {
+        document.querySelector(`#${answerId} .markdown-body`).innerHTML =
+            `<span class="text-danger">请求失败: ${e.message}</span>`;
+    }
+
+    chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+// 回车发送
+document.getElementById('questionInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); }
+});
+
+document.addEventListener('DOMContentLoaded', loadKBs);
+</script>
+{% endblock %}

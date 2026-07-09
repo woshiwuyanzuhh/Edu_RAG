@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}首页 - edu_rag 智能题库系统{% endblock %}
+{% block content %}
+{% set active_page = 'index' %}
+
+<div class="text-center py-5">
+    <h1 class="display-4 fw-bold mb-3">
+        <i class="bi bi-book text-primary"></i> edu_rag
+    </h1>
+    <p class="lead text-muted mb-4">基于 RAG 的智能教育题库系统 —— 上传文档、智能出题、自动批改</p>
+</div>
+
+<div class="row g-4 mt-3">
+    <div class="col-md-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <i class="bi bi-folder2 display-4 text-primary"></i>
+                <h5 class="card-title mt-2">知识库管理</h5>
+                <p class="card-text text-muted">创建和管理多个知识库，按课程或主题分类</p>
+                <a href="/knowledge" class="btn btn-outline-primary">进入管理</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <i class="bi bi-cloud-upload display-4 text-success"></i>
+                <h5 class="card-title mt-2">文档上传</h5>
+                <p class="card-text text-muted">支持 PDF、Word、Markdown、TXT 格式</p>
+                <a href="/upload" class="btn btn-outline-success">上传文档</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <i class="bi bi-chat-dots display-4 text-info"></i>
+                <h5 class="card-title mt-2">智能问答</h5>
+                <p class="card-text text-muted">基于知识库内容的精准问答</p>
+                <a href="/qa" class="btn btn-outline-info">开始提问</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <i class="bi bi-pencil-square display-4 text-warning"></i>
+                <h5 class="card-title mt-2">智能题库</h5>
+                <p class="card-text text-muted">AI 自动出题、在线作答、智能批改</p>
+                <a href="/exam" class="btn btn-outline-warning">生成题目</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-6 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-lightbulb"></i> 快速开始</h5>
+            </div>
+            <div class="card-body">
+                <ol class="mb-0">
+                    <li>创建知识库：点击「知识库管理」创建课程知识库</li>
+                    <li>上传文档：上传教材、讲义等文档，系统自动解析和向量化</li>
+                    <li>智能问答：基于文档内容提问，获取精准回答</li>
+                    <li>生成题目：选择题、简答题、判断题，AI 自动出题</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

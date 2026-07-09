@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}文档上传 - edu_rag{% endblock %}
+{% block content %}
+{% set active_page = 'upload' %}
+
+<h2 class="mb-4"><i class="bi bi-cloud-upload"></i> 文档上传</h2>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">选择知识库</label>
+                    <select id="kbSelect" class="form-select">
+                        <option value="">-- 请选择知识库 --</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">文档类型</label>
+                    <select id="docType" class="form-select">
+                        <option value="general">通用</option>
+                        <option value="education">教育</option>
+                        <option value="gaming">游戏</option>
+                    </select>
+                    <small class="text-muted">选择文档类型以获得更好的预处理效果</small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">选择文件</label>
+                    <div id="dropZone" class="border border-2 border-dashed rounded-3 p-5 text-center bg-light">
+                        <i class="bi bi-file-earmark-arrow-up display-4 text-muted d-block mb-3"></i>
+                        <p class="text-muted">拖拽文件到此处，或点击选择</p>
+                        <input type="file" id="fileInput" class="d-none" accept=".pdf,.txt,.docx,.doc,.md">
+                        <button class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+                            <i class="bi bi-folder2-open"></i> 选择文件
+                        </button>
+                        <p class="small text-muted mt-2">支持 PDF、Word (.docx)、Markdown (.md)、TXT</p>
+                    </div>
+                    <div id="fileInfo" class="d-none mt-2 p-2 border rounded bg-white">
+                        <span id="fileName"></span>
+                        <span id="fileSize" class="text-muted ms-2"></span>
+                    </div>
+                </div>
+
+                <button id="uploadBtn" class="btn btn-primary" onclick="uploadFile()" disabled>
+                    <i class="bi bi-cloud-upload"></i> 上传并处理
+                </button>
+            </div>
+        </div>
+
+        <!-- 上传进度 -->
+        <div id="uploadProgress" class="d-none mt-3">
+            <div class="progress">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%">
+                    正在处理文档...
+                </div>
+            </div>
+        </div>
+
+        <!-- 处理结果 -->
+        <div id="uploadResult" class="d-none mt-3"></div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> 说明</h6>
+            </div>
+            <div class="card-body small">
+                <ul class="mb-0">
+                    <li>上传后系统自动解析文档内容</li>
+                    <li>文本自动分块并生成向量</li>
+                    <li>向量存入 ChromaDB，支持语义检索</li>
+                    <li>文件大小限制：50MB</li>
+                    <li>处理时间取决于文件大小</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 文档列表 -->
+        <div class="card shadow-sm mt-3">
+            <div class="card-header bg-light d-flex justify-content-between">
+                <h6 class="mb-0"><i class="bi bi-files"></i> 已上传文档</h6>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadDocs()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <ul id="docList" class="list-group list-group-flush small">
+                    <li class="list-group-item text-center text-muted">点击刷新加载</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let selectedFile = null;
+
+async function loadKBs() {
+    const resp = await fetch('/api/kb');
+    const result = await resp.json();
+    const select = document.getElementById('kbSelect');
+    select.innerHTML = '<option value="">-- 请选择知识库 --</option>' +
+        (result.data.items || result.data.knowledge_bases || []).map(kb =>
+            `<option value="${kb.id}" ${getUrlKB() == kb.id ? 'selected' : ''}>${escapeHtml(kb.name)}</option>`
+        ).join('');
+}
+
+function getUrlKB() {
+    const p = new URLSearchParams(location.search);
+    return p.get('kb');
+}
+
+// 文件选择
+document.getElementById('fileInput').addEventListener('change', (e) => {
+    selectedFile = e.target.files[0];
+    if (selectedFile) showFileInfo();
+    else hideFileInfo();
+});
+
+// 拖拽上传
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('bg-info-subtle'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('bg-info-subtle'));
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('bg-info-subtle');
+    selectedFile = e.dataTransfer.files[0];
+    showFileInfo();
+});
+
+function showFileInfo() {
+    document.getElementById('fileInfo').classList.remove('d-none');
+    document.getElementById('fileName').textContent = selectedFile.name;
+    document.getElementById('fileSize').textContent = formatSize(selectedFile.size);
+    document.getElementById('uploadBtn').disabled = false;
+}
+
+function hideFileInfo() {
+    document.getElementById('fileInfo').classList.add('d-none');
+    document.getElementById('uploadBtn').disabled = true;
+}
+
+function formatSize(bytes) {
+    return bytes < 1024*1024 ? (bytes/1024).toFixed(1)+'KB' : (bytes/1024/1024).toFixed(1)+'MB';
+}
+
+async function uploadFile() {
+    const kbId = document.getElementById('kbSelect').value;
+    if (!kbId) return alert('请选择知识库');
+    if (!selectedFile) return alert('请选择文件');
+
+    const progress = document.getElementById('uploadProgress');
+    const result = document.getElementById('uploadResult');
+    progress.classList.remove('d-none');
+    result.classList.add('d-none');
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('knowledge_base_id', kbId);
+    formData.append('doc_type', document.getElementById('docType').value);
+
+    try {
+        const resp = await fetch('/api/documents/upload', {method: 'POST', body: formData});
+        const data = await resp.json();
+        progress.classList.add('d-none');
+
+        if (data.success) {
+            result.classList.remove('d-none');
+            result.innerHTML = `<div class="alert alert-success">
+                <i class="bi bi-check-circle"></i> ${data.message}</div>`;
+            hideFileInfo();
+            selectedFile = null;
+            loadDocs();
+        } else {
+            throw new Error(data.message || '上传失败');
+        }
+    } catch(e) {
+        progress.classList.add('d-none');
+        result.classList.remove('d-none');
+        result.innerHTML = `<div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle"></i> ${e.message}</div>`;
+    }
+}
+
+async function loadDocs() {
+    const kbId = document.getElementById('kbSelect').value;
+    const url = kbId ? `/api/documents?knowledge_base_id=${kbId}` : '/api/documents';
+    const resp = await fetch(url);
+    const data = await resp.json();
+    const list = document.getElementById('docList');
+
+    const docs = data.data.items || data.data.documents || [];
+    if (!docs.length) {
+        list.innerHTML = '<li class="list-group-item text-center text-muted">暂无文档</li>';
+        return;
+    }
+
+    list.innerHTML = docs.map(d => `
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+                <span>${escapeHtml(d.filename)}</span>
+                <span class="badge ms-2 ${d.status === 'done' ? 'bg-success' : d.status === 'error' ? 'bg-danger' : 'bg-secondary'}">${d.status}</span>
+                <br><small class="text-muted">${d.chunk_count} 块 · ${formatSize(d.file_size)}</small>
+            </div>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteDoc(${d.id})" title="删除">
+                <i class="bi bi-trash"></i>
+            </button>
+        </li>
+    `).join('');
+}
+
+async function deleteDoc(id) {
+    if (!confirm('确定删除此文档？')) return;
+    await fetch(`/api/documents/${id}`, {method: 'DELETE'});
+    loadDocs();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadKBs();
+    loadDocs();
+});
+</script>
+{% endblock %}
