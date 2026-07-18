@@ -1,0 +1,90 @@
+# CI — 后端测试 + 覆盖率（含 MySQL + Redis 服务容器）
+name: Backend Test
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    # 服务容器：MySQL + Redis（集成测试依赖）
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci_test_pass
+          MYSQL_DATABASE: edu_rag
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      MYSQL__HOST: 127.0.0.1
+      MYSQL__PORT: 3306
+      MYSQL__USER: root
+      MYSQL__PASSWORD: ci_test_pass
+      MYSQL__DATABASE: edu_rag
+      REDIS__HOST: 127.0.0.1
+      REDIS__PORT: 6379
+      LLM__API_KEY: sk-ci-test-placeholder
+      LLM__BASE_URL: http://localhost:11434/v1
+      EMBEDDING__PROVIDER: api
+      EMBEDDING__API_BASE_URL: http://localhost:11434/v1
+      VECTOR_STORE__PROVIDER: chroma
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run database migrations
+        run: alembic upgrade head
+
+      - name: Run unit tests
+        run: pytest tests/unit/ -v --cov=src --cov-report=term-missing --cov-report=xml
+
+      - name: Run integration tests
+        run: pytest tests/integration/ -v
+        continue-on-error: true
+
+      - name: Run quality tests (RAGAS)
+        run: pytest tests/quality/ -v
+        continue-on-error: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.12'
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false

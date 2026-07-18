@@ -1,0 +1,54 @@
+# CI — Docker 镜像构建
+name: Docker Build
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          tags: edu-rag:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+
+      - name: Verify image
+        run: docker images edu-rag:${{ github.sha }}
+
+      # 可选：推送到镜像仓库（需配置 secrets）
+      # - name: Login to registry
+      #   if: github.event_name != 'pull_request'
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ${{ vars.DOCKER_REGISTRY }}
+      #     username: ${{ secrets.DOCKER_USERNAME }}
+      #     password: ${{ secrets.DOCKER_PASSWORD }}
+      #
+      # - name: Push image
+      #   if: github.event_name != 'pull_request'
+      #   uses: docker/build-push-action@v6
+      #   with:
+      #     context: .
+      #     file: docker/Dockerfile
+      #     push: true
+      #     tags: |
+      #       ${{ vars.DOCKER_REGISTRY }}/edu-rag:latest
+      #       ${{ vars.DOCKER_REGISTRY }}/edu-rag:${{ github.sha }}
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max

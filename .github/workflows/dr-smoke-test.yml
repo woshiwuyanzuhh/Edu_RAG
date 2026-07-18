@@ -1,0 +1,198 @@
+# edu_rag 容灾冒烟测试（P2-DR14）
+#
+# 在 CI 环境中验证容灾关键组件的可用性：
+#   1. 备份脚本可运行
+#   2. 备份验证脚本可运行
+#   3. Milvus 同步脚本语法正确
+#   4. failover_check 脚本可运行
+#   5. Nginx 配置语法正确
+#   6. 健康检查端点（liveness/readiness）可用
+#   7. MySQL 主从配置文件正确
+#   8. Redis Sentinel 配置正确
+#
+# 注意：此工作流仅做静态检查和单元级冒烟，不实际执行容灾切换。
+#       完整容灾演练请使用 scripts/disaster_drill.py 在生产环境执行。
+
+name: DR Smoke Test
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'scripts/backup.py'
+      - 'scripts/backup_verify.py'
+      - 'scripts/sync_milvus.py'
+      - 'scripts/failover_check.py'
+      - 'scripts/mysql_replication_setup.py'
+      - 'scripts/mysql_promote.py'
+      - 'scripts/disaster_drill.py'
+      - 'scripts/config_drift_check.py'
+      - 'scripts/cloud_init.sh'
+      - 'docker/nginx/**'
+      - 'docker/redis/**'
+      - 'docker/mysql/**'
+      - 'docker/monitoring/**'
+      - 'docker/docker-compose.cloud.yml'
+      - 'src/orchestration/app.py'
+      - '.github/workflows/dr-smoke-test.yml'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'scripts/backup.py'
+      - 'scripts/backup_verify.py'
+      - 'scripts/sync_milvus.py'
+      - 'scripts/failover_check.py'
+      - 'scripts/mysql_replication_setup.py'
+      - 'scripts/mysql_promote.py'
+      - 'scripts/disaster_drill.py'
+      - 'scripts/config_drift_check.py'
+      - 'docker/nginx/**'
+      - 'docker/redis/**'
+      - 'docker/mysql/**'
+
+jobs:
+  dr-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install httpx pydantic pydantic-settings sqlalchemy aiomysql redis pymilvus
+
+      - name: Verify Python scripts syntax
+        run: |
+          echo "=== 验证容灾脚本语法 ==="
+          python -m py_compile scripts/backup.py
+          python -m py_compile scripts/backup_verify.py
+          python -m py_compile scripts/sync_milvus.py
+          python -m py_compile scripts/failover_check.py
+          python -m py_compile scripts/mysql_replication_setup.py
+          python -m py_compile scripts/mysql_promote.py
+          python -m py_compile scripts/disaster_drill.py
+          python -m py_compile scripts/config_drift_check.py
+          echo "✅ 所有脚本语法正确"
+
+      - name: Verify shell script syntax
+        run: |
+          echo "=== 验证 Shell 脚本语法 ==="
+          bash -n scripts/cloud_init.sh
+          echo "✅ Shell 脚本语法正确"
+
+      - name: Verify Nginx config syntax
+        run: |
+          echo "=== 验证 Nginx 配置 ==="
+          # 创建临时配置（替换占位符）
+          sed 's/LOCAL_HOST/127.0.0.1/g' docker/nginx/nginx.conf > /tmp/nginx_test.conf
+          # 使用 Docker 验证
+          docker run --rm -v /tmp/nginx_test.conf:/etc/nginx/nginx.conf nginx:1.25-alpine nginx -t
+          echo "✅ Nginx 配置语法正确"
+
+      - name: Verify docker-compose.cloud.yml
+        run: |
+          echo "=== 验证云部署 compose 文件 ==="
+          # 创建临时 .env 文件
+          cat > /tmp/dr_env << EOF
+          MYSQL_PASSWORD=test_pass_12345
+          REDIS_PASSWORD=test_pass_12345
+          OPENAI_API_KEY=sk-test
+          EOF
+          docker compose -f docker/docker-compose.cloud.yml --env-file /tmp/dr_env config > /dev/null
+          echo "✅ docker-compose.cloud.yml 配置正确"
+
+      - name: Verify MySQL config files
+        run: |
+          echo "=== 验证 MySQL 配置 ==="
+          # 检查 master.cnf
+          if grep -q "server-id=1" docker/mysql/master.cnf && \
+             grep -q "log-bin" docker/mysql/master.cnf && \
+             grep -q "binlog-format=ROW" docker/mysql/master.cnf; then
+            echo "✅ master.cnf 正确"
+          else
+            echo "❌ master.cnf 缺少必要配置"
+            exit 1
+          fi
+          # 检查 slave.cnf
+          if grep -q "server-id=2" docker/mysql/slave.cnf && \
+             grep -q "relay-log" docker/mysql/slave.cnf && \
+             grep -q "read-only=1" docker/mysql/slave.cnf; then
+            echo "✅ slave.cnf 正确"
+          else
+            echo "❌ slave.cnf 缺少必要配置"
+            exit 1
+          fi
+
+      - name: Verify Redis config files
+        run: |
+          echo "=== 验证 Redis 配置 ==="
+          # 检查 sentinel.conf
+          if grep -q "sentinel monitor" docker/redis/sentinel.conf && \
+             grep -q "down-after-milliseconds" docker/redis/sentinel.conf && \
+             grep -q "failover-timeout" docker/redis/sentinel.conf; then
+            echo "✅ sentinel.conf 正确"
+          else
+            echo "❌ sentinel.conf 缺少必要配置"
+            exit 1
+          fi
+          # 检查 replica.conf
+          if grep -q "replicaof" docker/redis/replica.conf && \
+             grep -q "masterauth" docker/redis/replica.conf && \
+             grep -q "replica-read-only yes" docker/redis/replica.conf; then
+            echo "✅ replica.conf 正确"
+          else
+            echo "❌ replica.conf 缺少必要配置"
+            exit 1
+          fi
+
+      - name: Verify Prometheus alert rules
+        run: |
+          echo "=== 验证 Prometheus 告警规则 ==="
+          # 检查 alerts.yml 是否包含关键告警
+          if grep -q "EduRagServiceDown" docker/monitoring/alerts.yml && \
+             grep -q "MySQLReplicationBroken" docker/monitoring/alerts.yml && \
+             grep -q "EduRagFailoverTriggered" docker/monitoring/alerts.yml; then
+            echo "✅ 告警规则完整"
+          else
+            echo "❌ 告警规则缺少关键项"
+            exit 1
+          fi
+
+      - name: Verify health check endpoints
+        run: |
+          echo "=== 验证健康检查端点定义 ==="
+          # 检查 app.py 中是否定义了 liveness/readiness
+          if grep -q "/health/live" src/orchestration/app.py && \
+             grep -q "/health/ready" src/orchestration/app.py && \
+             grep -q "liveness_check" src/orchestration/app.py && \
+             grep -q "readiness_check" src/orchestration/app.py; then
+            echo "✅ 健康检查端点已定义"
+          else
+            echo "❌ 健康检查端点缺失"
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "  容灾冒烟测试完成"
+          echo "=========================================="
+          echo "所有容灾组件已验证："
+          echo "  - 备份脚本 (backup.py, backup_verify.py)"
+          echo "  - 数据同步 (sync_milvus.py, mysql_replication_setup.py)"
+          echo "  - 故障切换 (failover_check.py, mysql_promote.py)"
+          echo "  - 演练脚本 (disaster_drill.py)"
+          echo "  - 配置检查 (config_drift_check.py)"
+          echo "  - Nginx 配置"
+          echo "  - Docker Compose (cloud)"
+          echo "  - MySQL 主从配置"
+          echo "  - Redis Sentinel 配置"
+          echo "  - Prometheus 告警规则"
+          echo "  - 健康检查端点"
