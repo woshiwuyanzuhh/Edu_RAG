@@ -21,7 +21,6 @@ services:
   # app 连宿主机的 Milvus/Ollama（host.docker.internal 在 Windows/Mac 可用）
   app:
     environment:
-      - VECTOR_STORE__PROVIDER=milvus
       - VECTOR_STORE__MILVUS_HOST=host.docker.internal
       - VECTOR_STORE__MILVUS_PORT=19530
       - EMBEDDING__API_BASE_URL=http://host.docker.internal:11434/v1
@@ -36,7 +35,6 @@ services:
 
   worker:
     environment:
-      - VECTOR_STORE__PROVIDER=milvus
       - VECTOR_STORE__MILVUS_HOST=host.docker.internal
       - VECTOR_STORE__MILVUS_PORT=19530
       - EMBEDDING__API_BASE_URL=http://host.docker.internal:11434/v1

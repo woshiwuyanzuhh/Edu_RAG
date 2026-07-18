@@ -2,9 +2,9 @@
 FastAPI 应用入口 — 四层 RAG 架构的编排中心。
 
 生命周期:
-    启动: config validate → logging → MySQL → Redis → ChromaDB → cache
+    启动: config validate → logging → MySQL → Redis → Milvus → cache
     运行: 中间件链 → API 路由
-    关闭: ChromaDB disconnect → Redis disconnect → MySQL close
+    关闭: Milvus disconnect → Redis disconnect → MySQL close
 
 中间件链（Phase 3）:
     RequestID → Auth → RateLimit → CORS → ErrorHandler
@@ -78,8 +78,8 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("redis_unavailable — 缓存功能不可用，系统降级运行")
 
-    # 4. ChromaDB
-    logger.info(f"connecting_vector_store provider={settings.vector_store.provider}")
+    # 4. Milvus 向量库
+    logger.info(f"connecting_milvus host={settings.vector_store.milvus_host} port={settings.vector_store.milvus_port}")
     try:
         vector_store = get_vector_store()
         await vector_store.connect()
@@ -190,7 +190,7 @@ async def health_check():
     except Exception:
         pass
 
-    # 向量库（ChromaDB/Milvus 通用：count() 可达即健康，3s 超时保护）
+    # 向量库（Milvus：count() 可达即健康，3s 超时保护）
     try:
         vs = get_vector_store()
         await asyncio.wait_for(vs.count(), timeout=3.0)

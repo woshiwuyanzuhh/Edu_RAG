@@ -258,11 +258,11 @@ class TestComponentConnectivity:
         assert e.dimension == 1024
 
     @requires_mysql
-    def test_chroma_store_health(self):
-        from src.retrieval.vector_store.chroma import ChromaStore
+    def test_milvus_store_health(self):
+        from src.retrieval.vector_store.milvus import MilvusStore
 
         async def _run():
-            store = ChromaStore()
+            store = MilvusStore()
             await store.connect()
             count = await store.count()
             assert isinstance(count, int)
@@ -274,9 +274,9 @@ class TestComponentConnectivity:
     def test_retrieval_service_di(self):
         from src.retrieval.service import RetrievalService
         from src.retrieval.embedder import OllamaEmbedder
-        from src.retrieval.vector_store.chroma import ChromaStore
+        from src.retrieval.vector_store.milvus import MilvusStore
 
-        svc = RetrievalService(embedder=OllamaEmbedder(), vector_store=ChromaStore())
+        svc = RetrievalService(embedder=OllamaEmbedder(), vector_store=MilvusStore())
         assert svc is not None
         assert svc._embedder is not None
         assert svc._vector_store is not None

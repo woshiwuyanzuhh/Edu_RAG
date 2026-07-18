@@ -39,7 +39,7 @@ class SearchResult:
 class IVectorStore(ABC):
     """向量数据库接口 — 存储与相似度检索。
 
-    实现可以是 ChromaDB（本地）、Milvus（远程）、
+    实现可以是 Milvus（分布式）、
     Pinecone（云服务）等，上层代码不感知差异。
     """
 

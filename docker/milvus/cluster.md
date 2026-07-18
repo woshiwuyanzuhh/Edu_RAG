@@ -44,9 +44,9 @@ cluster 模式天然多副本：
 - datanode 多副本 → 写入高可用
 - minio 跨可用区部署 → 数据高可用
 
-**本地 standalone → 云 cluster 数据迁移**：用 `scripts/migrate_chroma_to_milvus.py`（已支持，幂等，自动清空目标重建）。
+**本地 standalone → 云 cluster 数据迁移**：通过 `scripts/seed_test_data.py --reset` 重新灌入，或直接用 `pymilvus` 脚本导出/导入 collection 数据。
 
-切换后增量向量同步：本地新写入的向量需重新跑迁移脚本（幂等，会清空重建，适合停机窗口；如需增量同步需额外开发 CDC）。
+切换后增量向量同步：本地新写入的向量需在云上重新灌入（适合停机窗口；如需增量同步需额外开发 CDC）。
 
 ## 性能调优
 

@@ -50,7 +50,7 @@ def setup_logging(debug: bool = False) -> None:
     root.addHandler(handler)
 
     # 降低第三方库日志噪音
-    for lib in ("httpx", "openai", "chromadb", "sqlalchemy.engine", "urllib3"):
+    for lib in ("httpx", "openai", "pymilvus", "sqlalchemy.engine", "urllib3"):
         logging.getLogger(lib).setLevel(logging.WARNING)
 
     logging.getLogger(__name__).info(

@@ -205,7 +205,7 @@ const docColumns = [
           <ul class="info-list">
             <li>上传后系统自动解析文档内容</li>
             <li>文本自动分块并生成向量</li>
-            <li>向量存入 ChromaDB，支持语义检索</li>
+            <li>向量存入 Milvus，支持语义检索</li>
             <li>支持批量上传多个文件</li>
             <li>文件大小限制：单个 50MB</li>
           </ul>

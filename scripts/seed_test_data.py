@@ -13,7 +13,7 @@
 前置条件：
     - MySQL 已启动（edu_rag 库）
     - Ollama embedding 服务已启动（或 EMBEDDING__PROVIDER=api 指向可用服务）
-    - 向量库（Milvus/Chroma）已启动
+    - 向量库（Milvus）已启动
 """
 import argparse
 import asyncio

@@ -28,9 +28,8 @@ services:
       - REDIS__HOST=redis_cloud
       - REDIS__PORT=6379
       - REDIS__PASSWORD=${REDIS_PASSWORD:?必须设置 REDIS_PASSWORD 环境变量}
-      - VECTOR_STORE__PROVIDER=milvus
-      - VECTOR_STORE__MILVUS__HOST=milvus_cloud
-      - VECTOR_STORE__MILVUS__PORT=19530
+      - VECTOR_STORE__MILVUS_HOST=milvus_cloud
+      - VECTOR_STORE__MILVUS_PORT=19530
       - EMBEDDING__PROVIDER=api
       - EMBEDDING__API_BASE_URL=http://ollama_cloud:11434/v1
       - EMBEDDING__MODEL=bge-m3
@@ -66,9 +65,8 @@ services:
       - REDIS__HOST=redis_cloud
       - REDIS__PORT=6379
       - REDIS__PASSWORD=${REDIS_PASSWORD:?必须设置 REDIS_PASSWORD 环境变量}
-      - VECTOR_STORE__PROVIDER=milvus
-      - VECTOR_STORE__MILVUS__HOST=milvus_cloud
-      - VECTOR_STORE__MILVUS__PORT=19530
+      - VECTOR_STORE__MILVUS_HOST=milvus_cloud
+      - VECTOR_STORE__MILVUS_PORT=19530
       - EMBEDDING__PROVIDER=api
       - EMBEDDING__API_BASE_URL=http://ollama_cloud:11434/v1
       - EMBEDDING__MODEL=bge-m3

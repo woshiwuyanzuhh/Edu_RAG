@@ -118,7 +118,7 @@ class IngestionService(IIngestionService):
         try:
             await self._vector_store.delete_by_filter({"doc_id": str(doc_id)})
         except Exception as e:
-            # ChromaDB 可能不支持 delete_by_filter，fallback 到 ID 范围删除
+            # Milvus delete_by_filter 可能因 expr 语法失败，fallback 到 ID 范围删除
             logger.warning(f"vector_delete_by_filter_failed doc_id={doc_id} error={e} — trying delete_by_ids")
             try:
                 # P2: 减小盲删范围 — 一个文档通常不超过 2000 chunks

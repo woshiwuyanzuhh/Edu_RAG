@@ -46,18 +46,9 @@ class EmbeddingConfig(BaseSettings):
 
 
 class VectorStoreConfig(BaseSettings):
-    """向量数据库配置。"""
-    provider: str = Field(default="chroma", pattern="^(chroma|milvus)$", description="chroma 或 milvus")
-    # ChromaDB
-    chroma_path: str = Field(default="", description="ChromaDB 持久化路径")
-    # Milvus
-    milvus_host: str = Field(default="localhost")
-    milvus_port: int = Field(default=19530, ge=1, le=65535)
-
-    def get_chroma_path(self) -> str:
-        if self.chroma_path:
-            return self.chroma_path
-        return str(PROJECT_ROOT / "data" / "chroma")
+    """向量数据库配置 — Milvus。"""
+    milvus_host: str = Field(default="localhost", description="Milvus 主机地址")
+    milvus_port: int = Field(default=19530, ge=1, le=65535, description="Milvus gRPC 端口")
 
 
 class MySQLConfig(BaseSettings):
