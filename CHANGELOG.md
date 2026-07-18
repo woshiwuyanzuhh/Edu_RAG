@@ -1,0 +1,83 @@
+# CHANGELOG — edu_rag
+
+> 本文件记录所有有意义的架构变更和功能迭代，按时间倒序排列。
+> 当前项目状态见 [CLAUDE.md](CLAUDE.md)。
+
+---
+
+## 2026-07-18 — 压力测试方案实施
+
+**范围**: Phase 1-5 压测任务（8/9 完成，仅剩云环境 Docker）
+
+### 新增
+- `src/orchestration/middleware/timeout.py` — 全局请求超时中间件（SSE 豁免）
+- `src/observability/metrics.py` — Prometheus 业务指标定义（从 orchestration/middleware 下沉）
+- `scripts/seed_test_data.py` — 压测数据一键预灌入脚本
+- `docs/code-review-2026-07-18.md` — 项目 Review 报告（4.8/5）
+
+### 变更
+- **指标定义下沉** — 从 `orchestration/middleware/metrics.py` 移到 `observability/metrics.py`
+  - 修复分层违规：providers/retrieval 可合法埋点
+  - 原路径保留 re-export 向后兼容
+- **LLM 并发控制** — `OpenAICompatClient` 全局 Semaphore（`LLM__MAX_CONCURRENCY`，默认 10）
+- **Embedding 迁移 AsyncOpenAI** — `OllamaEmbedder` 从同步 SDK + to_thread 迁移到原生异步 + Semaphore
+- **限流开关** — `RateLimitMiddleware` 增加 `APP__RATE_LIMIT_ENABLED` 开关
+- **Prometheus 指标埋点** — QA/Exam/Doc 请求计数 + 检索/LLM 延迟直方图
+- **locustfile.py** — 修正端点路径 + 新增 SSE/Exam 压测场景
+- **依赖补全** — requirements.txt 补 arq/prometheus，pyproject.toml dev 加 locust
+
+### 新增配置项
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `APP__REQUEST_TIMEOUT` | 30 | 全局请求超时秒数（SSE 豁免） |
+| `APP__RATE_LIMIT_ENABLED` | true | 限流中间件开关 |
+| `LLM__MAX_CONCURRENCY` | 10 | LLM 并发请求上限 |
+| `EMBEDDING__MAX_CONCURRENCY` | 20 | Embedding 并发请求上限 |
+
+---
+
+## 2026-07-16 — v2.0 架构重构
+
+**范围**: providers 提取 + jobs 解耦 + BM25 隔离 + 前端重构 + 容灾配置
+
+### 架构改进
+- **providers/ 提取** — LLM 客户端从 generation/ 下沉到独立基础设施层
+- **orchestration/jobs/** — API 层与业务逻辑解耦（`process_document_ingestion` / `delete_document_resources`）
+- **BM25 知识库隔离** — 修复跨知识库搜索结果泄漏（`_bm25_indexes: dict[int | None, BM25Index]`）
+- **HyDE 下沉** — 从 orchestration 移到 generation 层（修复分层违规），原路径 re-export
+- **AsyncOpenAI 迁移** — LLM 客户端从同步 SDK 迁移到原生异步
+- **Redis scan()** — 废弃 keys()（DeprecationWarning），新增非阻塞 scan()
+- **Alembic 迁移** — 手动创建初始迁移脚本（0001_initial_schema.py，6 张表）
+- **接口统一** — 全部 interfaces/ 从 Protocol 统一为 ABC + @abstractmethod
+
+### 前端重构
+- Design Token 系统（双主题变量 + 全局样式）
+- 3 个通用组件（EmptyState / LoadingSkeleton / PageHeader）
+- 2 个 Pinia stores（chat 多会话 + global 全局）
+- 2 个 composables（useKnowledgeBases / useSSE）
+- 5 个页面全面重写（Home / QA / Upload / Exam / Knowledge）
+
+### 容灾配置
+- MySQL 主从配置（master.cnf / slave.cnf）
+- Redis 哨兵配置（sentinel.conf）
+- docker-compose.cloud.yml（云环境 + Prometheus + Grafana）
+- scripts/failover_check.py（故障切换检查）
+
+### 向后兼容 re-exports
+- `orchestration/middleware/metrics.py` → `observability/metrics.py`
+- `orchestration/query_preprocessor.py` → `generation/hyde.py`
+- `generation/llm/` → `providers/llm/`（`__getattr__` 惰性加载）
+
+---
+
+## 2026-07-09 — v1.0 初始版本
+
+- 四层 RAG 架构搭建（ingress / retrieval / generation / orchestration）
+- 14 个 ABC 接口契约
+- 多格式文档解析（PDF / DOCX / MD / TXT）
+- 两阶段语义检索（向量召回 + BM25 混合 + LLM 精排）
+- QA 问答（非流式 + SSE 流式）+ 智能出题 + 四维度批改
+- Guardrails 安全链（输入检测 / 拒答 / 幻觉检测）
+- 多级缓存（L1 进程 + L2 Redis）
+- 全链路 Tracer + RAGAS 评估
+- 226 测试用例

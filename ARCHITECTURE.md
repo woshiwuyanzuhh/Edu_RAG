@@ -8,7 +8,7 @@
 ## 目录
 
 1. [总体架构：四层物理分层](#一总体架构四层物理分层)
-2. [接口契约体系（9 个 ABC）](#二接口契约体系9-个-abc)
+2. [接口契约体系（14 个 ABC）](#二接口契约体系14-个-abc)
 3. [设计模式与最佳实践](#三设计模式与最佳实践)
 4. [数据流：一个 QA 请求的完整路径](#四数据流一个-qa-请求的完整路径)
 5. [关键设计决策与效益](#五关键设计决策与效益)
@@ -47,17 +47,18 @@
 ```
 edu_rag/
 ├── src/
-│   ├── interfaces/ (10 files)   # 9 ABC + 1 dataclass — 架构的契约基石
+│   ├── interfaces/ (14 files)   # 14 ABC — 架构的契约基石
 │   ├── ingress/ (13 files)      # parsers / cleaners / chunkers / pipeline
 │   ├── retrieval/ (15+ files)   # service / recall / rerank / filters / embedder / vector_store / keyword
-│   ├── generation/ (10 files)   # llm(client+resilience) / prompts / engines(qa+exam)
-│   ├── orchestration/ (13 files)# app / api(4 routers) / middleware(3) / session / pagination
-│   ├── shared/ (12 files)       # config / db(mysql+redis) / cache / security / exceptions / models(orm+schemas)
-│   ├── observability/ (1 file)  # Tracer + span + context propagation + RAGAS
+│   ├── generation/ (10+ files)  # engines(qa+exam) / prompts / context / guardrails / hyde
+│   ├── orchestration/ (15+ files)# app / api(4 routers) / middleware(5) / session / jobs / worker / pagination
+│   ├── providers/ (4 files)     # LLM 客户端 (AsyncOpenAI + Semaphore) + 重试韧性
+│   ├── shared/ (14 files)       # config / db(mysql+redis) / cache / security / exceptions / models / storage / json_utils
+│   ├── observability/ (4 files) # Tracer + RAGAS + Prometheus Metrics + RetrievalLogger
 │   ├── static/                  # CSS/JS (Jinja2 遗留，可回退)
 │   └── templates/               # Jinja2 模板 (5 pages，保留未删)
 ├── frontend/                    # Vue 3 + Vite + Ant Design (主力前端)
-│   └── src/ (15 files: 5 views + 5 api + router + App.vue)
+│   └── src/ (20+ files: 5 views + 7 api + router + 3 components + 2 composables + 2 stores + 2 styles)
 ├── tests/ (226 tests, 19 files)
 ├── docker/ (Dockerfile + docker-compose.yml)
 ├── .env / .env.example
@@ -80,7 +81,7 @@ edu_rag/
 
 ---
 
-## 二、接口契约体系（9 个 ABC）
+## 二、接口契约体系（14 个 ABC）
 
 这是架构的基石——**每一层只依赖抽象，不依赖实现**。
 
@@ -94,7 +95,12 @@ src/interfaces/
 ├── IReranker          → async rerank(query, candidates, top_k) -> list[SearchResult]
 ├── IQueryExpander     → async expand(question, n) -> list[str]
 ├── ILLMClient         → async chat() + async chat_stream() (AsyncGenerator)
-└── IRetrievalService  → retrieve() + retrieve_with_context() + build_context_for_exam()
+├── IRetrievalService  → retrieve() + retrieve_with_context() + build_context_for_exam()
+├── IIngestionService  → ingest(file_path, doc_id, kb_id) → IngestionResult
+├── IGenerationService → qa() + qa_stream() + generate_exam() + grade_exam()
+├── IGuardrail         → check(input: str) → GuardrailResult
+├── IContextProcessor  → process(query, contexts) → processed_contexts
+└── IIngestionPipeline → run_ingestion(file_path, doc_id, kb_id) → PipelineResult
 ```
 
 ### 数据类
@@ -854,7 +860,7 @@ def evaluate_rag(question, answer, contexts, ground_truth=None) -> dict:
 
 | 实践 | 本项目落地 | 来源 |
 |------|-----------|------|
-| **Dependency Inversion** | 9 个 ABC，所有模块依赖接口 | SOLID 原则 (Robert C. Martin) |
+| **Dependency Inversion** | 14 个 ABC，所有模块依赖接口 | SOLID 原则 (Robert C. Martin) |
 | **Hexagonal Architecture** | 四层物理分层 + 接口做边界 | Alistair Cockburn |
 | **Two-Stage Retrieval** | Recall (粗排) → Rerank (精排) | RAG 工业共识 (LlamaIndex/LangChain) |
 | **Lost in the Middle** | 首尾重排策略 | Liu et al., 2023 |
