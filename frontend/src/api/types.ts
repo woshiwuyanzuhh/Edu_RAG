@@ -39,6 +39,27 @@ export interface DocumentItem {
   created_at: string
 }
 
+// === Document Types ===
+// 与后端 src/shared/constants.py 的 DOCUMENT_TYPES 保持一致
+export interface DocTypeOption {
+  key: string
+  label: string
+  description: string
+}
+
+export const DOCUMENT_TYPES: DocTypeOption[] = [
+  { key: 'general',    label: '通用',     description: '默认清洗策略，适用于未分类的文档' },
+  { key: 'education',  label: '教育',     description: '教材、讲义、试题 — 过滤页码、水印、参考文献' },
+  { key: 'gaming',     label: '游戏攻略',  description: '论坛攻略、wiki — 过滤签名、广告、纯 emoji' },
+  { key: 'tech',       label: '技术文档',  description: 'IT/编程/软件手册 — 过滤代码行号、shell 提示符、TODO 注释' },
+  { key: 'medical',    label: '医疗健康',  description: '医学文献、健康科普 — 过滤免责声明、医院信息、广告' },
+  { key: 'legal',      label: '法律法规',  description: '法条、判例、合同 — 过滤页眉页脚、司法解释水印' },
+  { key: 'finance',    label: '金融财经',  description: '研报、财报、理财 — 过滤风险提示、免责声明、股票代码刷屏' },
+  { key: 'news',       label: '新闻资讯',  description: '新闻报道、资讯 — 过滤版权声明、记者署名、编辑信息' },
+  { key: 'literature', label: '文学作品',  description: '小说、散文、诗歌 — 过滤 OCR 噪声、章节编号噪声，保留对话' },
+  { key: 'business',   label: '商业管理',  description: '商业报告、管理文档 — 过滤 PPT 页码、机密水印、页眉页脚' },
+]
+
 // === QA ===
 export interface QARequest {
   question: string

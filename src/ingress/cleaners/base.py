@@ -15,8 +15,13 @@
     - 长度 < 15 字符 → 丢弃
     - CJK+Latin 占比 < 20% → 丢弃
     - Jaccard ≥ 0.92 → 去重
+
+辅助工具（供子类复用）：
+    - _filter_lines: 按一组断言逐行过滤，命中任一断言的行被丢弃
 """
 import re
+from collections.abc import Callable
+
 from src.interfaces.cleaner import ICleaner
 
 
@@ -35,6 +40,29 @@ class BaseCleaner(ICleaner):
         text = self._normalize_linebreaks(text)
         text = self._normalize_whitespace(text)
         return text
+
+    # ── 子类复用工具 ──
+
+    @staticmethod
+    def _filter_lines(text: str, predicates: list[Callable[[str], bool]]) -> str:
+        """按断言逐行过滤。
+
+        Args:
+            text: 待过滤文本
+            predicates: 断言列表；某行命中任一断言（返回 True）即被丢弃
+
+        Returns:
+            过滤后的文本（保留原始换行结构）
+        """
+        if not predicates:
+            return text
+        kept: list[str] = []
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if any(p(stripped) for p in predicates):
+                continue
+            kept.append(line)
+        return "\n".join(kept)
 
     @staticmethod
     def _strip_control_chars(text: str) -> str:

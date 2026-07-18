@@ -152,7 +152,13 @@ class TestRunIngestionSuccess:
             tmp_path = f.name
 
         try:
-            for doc_type in ["general", "education", "gaming"]:
+            # 覆盖所有 10 个文档类型
+            all_doc_types = [
+                "general", "education", "gaming",
+                "tech", "medical", "legal",
+                "finance", "news", "literature", "business",
+            ]
+            for doc_type in all_doc_types:
                 result = asyncio.run(run_ingestion(
                     file_path=tmp_path,
                     doc_id=1,
@@ -162,5 +168,28 @@ class TestRunIngestionSuccess:
                 ))
                 for chunk in result.chunks:
                     assert chunk.metadata["doc_type"] == doc_type
+        finally:
+            os.unlink(tmp_path)
+
+    def test_invalid_doc_type_falls_back_to_general(self):
+        """未知的 doc_type 应回退到 general 清洗器（容错）。"""
+        content = "这是一段测试内容，用于验证未知文档类型的回退逻辑。" * 5
+        with tempfile.NamedTemporaryFile(suffix=".txt", mode="w", delete=False, encoding="utf-8") as f:
+            f.write(content)
+            tmp_path = f.name
+
+        try:
+            # pipeline 对未知 doc_type 会 KeyError，但 service 层有回退
+            # 这里测试 pipeline 层的行为：未知 doc_type 应拋错或回退
+            # 当前实现：CLEANER_REGISTRY.get(doc_type, CLEANER_REGISTRY["general"])
+            result = asyncio.run(run_ingestion(
+                file_path=tmp_path,
+                doc_id=1,
+                kb_id=1,
+                doc_type="unknown_type",
+                chunk_size=200,
+            ))
+            # 回退到 general 后应正常处理
+            assert len(result.chunks) >= 1
         finally:
             os.unlink(tmp_path)

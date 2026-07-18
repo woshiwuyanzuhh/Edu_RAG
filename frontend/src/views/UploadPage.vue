@@ -11,7 +11,8 @@ import {
 } from '@ant-design/icons-vue'
 import { listKnowledgeBases } from '../api/knowledge'
 import { uploadDocument, listDocuments, deleteDocument } from '../api/documents'
-import type { KnowledgeBase, DocumentItem } from '../api/types'
+import type { KnowledgeBase, DocumentItem, DocTypeOption } from '../api/types'
+import { DOCUMENT_TYPES } from '../api/types'
 import { message } from 'ant-design-vue'
 import PageHeader from '../components/PageHeader.vue'
 import EmptyState from '../components/EmptyState.vue'
@@ -21,6 +22,7 @@ const route = useRoute()
 const kbList = ref<KnowledgeBase[]>([])
 const selectedKbId = ref<number | undefined>()
 const docType = ref('general')
+const docTypeOptions = ref<DocTypeOption[]>(DOCUMENT_TYPES)
 const docList = ref<DocumentItem[]>([])
 const uploading = ref(false)
 const uploadProgress = ref<Record<string, number>>({})
@@ -142,11 +144,17 @@ const docColumns = [
               </a-select>
             </a-form-item>
             <a-form-item label="文档类型">
-              <a-select v-model:value="docType" style="width: 200px">
-                <a-select-option value="general">通用</a-select-option>
-                <a-select-option value="education">教育</a-select-option>
-                <a-select-option value="gaming">游戏</a-select-option>
+              <a-select v-model:value="docType" style="width: 220px">
+                <a-select-option
+                  v-for="opt in docTypeOptions"
+                  :key="opt.key"
+                  :value="opt.key"
+                  :title="opt.description"
+                >{{ opt.label }}</a-select-option>
               </a-select>
+              <div class="doc-type-hint text-secondary">
+                {{ docTypeOptions.find(o => o.key === docType)?.description }}
+              </div>
             </a-form-item>
             <a-form-item label="选择文件">
               <a-upload-dragger
@@ -329,6 +337,12 @@ const docColumns = [
 }
 .info-list li {
   margin: var(--space-xs) 0;
+}
+.doc-type-hint {
+  font-size: var(--font-size-xs);
+  margin-top: var(--space-xs);
+  min-height: 1.2em;
+  line-height: var(--line-height-tight);
 }
 
 /* 响应式 */

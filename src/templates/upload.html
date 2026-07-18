@@ -21,9 +21,16 @@
                     <select id="docType" class="form-select">
                         <option value="general">通用</option>
                         <option value="education">教育</option>
-                        <option value="gaming">游戏</option>
+                        <option value="gaming">游戏攻略</option>
+                        <option value="tech">技术文档</option>
+                        <option value="medical">医疗健康</option>
+                        <option value="legal">法律法规</option>
+                        <option value="finance">金融财经</option>
+                        <option value="news">新闻资讯</option>
+                        <option value="literature">文学作品</option>
+                        <option value="business">商业管理</option>
                     </select>
-                    <small class="text-muted">选择文档类型以获得更好的预处理效果</small>
+                    <small id="docTypeHint" class="text-muted">选择文档类型以获得更好的预处理效果</small>
                 </div>
 
                 <div class="mb-3">
@@ -99,6 +106,29 @@
 {% block extra_scripts %}
 <script>
 let selectedFile = null;
+
+// 文档类型描述映射
+const DOC_TYPE_HINTS = {
+    'general': '默认清洗策略，适用于未分类的文档',
+    'education': '教材、讲义、试题 — 过滤页码、水印、参考文献',
+    'gaming': '论坛攻略、wiki — 过滤签名、广告、纯 emoji',
+    'tech': 'IT/编程/软件手册 — 过滤代码行号、shell 提示符、TODO 注释',
+    'medical': '医学文献、健康科普 — 过滤免责声明、医院信息、广告',
+    'legal': '法条、判例、合同 — 过滤页眉页脚、司法解释水印',
+    'finance': '研报、财报、理财 — 过滤风险提示、免责声明、股票代码刷屏',
+    'news': '新闻报道、资讯 — 过滤版权声明、记者署名、编辑信息',
+    'literature': '小说、散文、诗歌 — 过滤 OCR 噪声、章节编号噪声，保留对话',
+    'business': '商业报告、管理文档 — 过滤 PPT 页码、机密水印、页眉页脚',
+};
+
+// 切换文档类型时更新提示
+document.addEventListener('DOMContentLoaded', () => {
+    const docTypeSelect = document.getElementById('docType');
+    const docTypeHint = document.getElementById('docTypeHint');
+    docTypeSelect.addEventListener('change', (e) => {
+        docTypeHint.textContent = DOC_TYPE_HINTS[e.target.value] || '选择文档类型以获得更好的预处理效果';
+    });
+});
 
 async function loadKBs() {
     const resp = await fetch('/api/kb');

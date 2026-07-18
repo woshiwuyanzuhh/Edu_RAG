@@ -14,10 +14,11 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.config import settings
+from src.shared.constants import DOCUMENT_TYPES, is_valid_doc_type
 from src.shared.database.mysql import get_db
 from src.shared.models.orm import Document, KnowledgeBase
 from src.shared.models.schemas import APIResponse
-from src.shared.exceptions import NotFoundError, UnsupportedFileType, FileTooLarge
+from src.shared.exceptions import NotFoundError, UnsupportedFileType, FileTooLarge, ValidationError
 from src.orchestration.pagination import paginate, get_offset_limit, paginated_select
 from src.orchestration.jobs.ingestion import delete_document_resources, process_document_ingestion
 from src.orchestration.middleware.metrics import DOCUMENT_PROCESSED
@@ -51,6 +52,13 @@ async def upload_document(
     doc_type: str = Form(default="general"),
     db: AsyncSession = Depends(get_db),
 ):
+    # 0. 校验文档类型（白名单）
+    if not is_valid_doc_type(doc_type):
+        raise ValidationError(
+            f"不支持的文档类型: {doc_type}",
+            detail=f"合法类型: {list(d['key'] for d in DOCUMENT_TYPES)}",
+        )
+
     # 1. 校验知识库
     kb = await db.get(KnowledgeBase, knowledge_base_id)
     if not kb:
@@ -161,6 +169,12 @@ async def list_documents(
         serializer=_serialize,
     )
     return APIResponse(data=result.model_dump())
+
+
+@router.get("/types", response_model=APIResponse)
+async def list_document_types():
+    """返回所有支持的文档类型（供前端下拉渲染）。"""
+    return APIResponse(data={"types": DOCUMENT_TYPES})
 
 
 @router.delete("/{doc_id}", response_model=APIResponse)
