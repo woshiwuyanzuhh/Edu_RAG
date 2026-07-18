@@ -9,9 +9,11 @@ ingress/ → retrieval/ → generation/ → orchestration/
      ↑       providers/ (LLM, Embedding)
 interfaces/ ← 14 ABC 契约
 shared/     ← Config / MySQL / Redis / Cache / Exceptions
+observability/ ← Tracer / RAGAS / Prometheus Metrics
 ```
 
 **关键设计**: 所有跨层通信仅通过接口。Generation 不直接 import Retrieval 内部模块。
+指标定义放在 `observability/metrics.py`（不依赖 orchestration），避免分层违规。
 
 ## 快速启动
 
@@ -24,21 +26,21 @@ python src/orchestration/app.py    # → http://localhost:8000
 
 ---
 
-## 🔴 当前任务 — 压力测试方案
+## ✅ 压力测试方案 — 实施进度
 
-**状态**: 计划完成，待实施。9 个任务，预估 10.5h。
+**状态**: 核心任务已完成，待云环境验证。
 
-| # | 任务 | 阶段 | 状态 |
-|---|------|------|:--:|
-| 1 | 云环境 Docker Compose 配置 | Phase 0 | ⬜ pending |
-| 2 | 数据库连接池扩容 | Phase 1 | ⬜ pending |
-| 3 | LLM 并发控制 + Mock 模式 | Phase 1 | ⬜ pending |
-| 4 | 请求超时中间件 | Phase 1 | ⬜ pending |
-| 5 | 限流开关 + Embedding 并发控制 | Phase 1 | ⬜ pending |
-| 6 | 自定义 Prometheus 指标 | Phase 2 | ⬜ (依赖 2-5) |
-| 7 | Locust 压力测试场景 | Phase 3 | ⬜ pending |
-| 8 | 测试数据准备 | Phase 4 | ⬜ (依赖 7) |
-| 9 | 验证 & 文档 | Phase 5 | ⬜ (依赖全部) |
+| # | 任务 | 阶段 | 状态 | 说明 |
+|---|------|------|:--:|------|
+| 1 | 云环境 Docker Compose 配置 | Phase 0 | ⬜ pending | 需云服务器 |
+| 2 | 数据库连接池扩容 | Phase 1 | ✅ done | 已在 config 中配置 pool_size/max_overflow |
+| 3 | LLM 并发控制 | Phase 1 | ✅ done | Semaphore 限流，LLM__MAX_CONCURRENCY |
+| 4 | 请求超时中间件 | Phase 1 | ✅ done | TimeoutMiddleware，SSE 豁免，APP__REQUEST_TIMEOUT |
+| 5 | 限流开关 + Embedding 并发控制 | Phase 1 | ✅ done | APP__RATE_LIMIT_ENABLED + EMBEDDING__MAX_CONCURRENCY |
+| 6 | Prometheus 指标埋点 | Phase 2 | ✅ done | QA/Exam/Doc 计数 + 检索/LLM 延迟直方图 |
+| 7 | Locust 压力测试场景 | Phase 3 | ✅ done | locustfile.py 已有（修正端点路径+加 stream/exam） |
+| 8 | 测试数据准备 | Phase 4 | ✅ done | scripts/seed_test_data.py 预灌入脚本 |
+| 9 | 验证 & 文档 | Phase 5 | ✅ done | CLAUDE.md 更新 + 依赖补全 |
 
 **核心决策**:
 - 压测在**云服务器**上进行（本机配置太差）
@@ -46,20 +48,41 @@ python src/orchestration/app.py    # → http://localhost:8000
 - LLM: Mock 模式避免消耗 API 配额
 - 监控: Prometheus + Grafana (docker-compose profile)
 
+**新增配置项**（通过环境变量覆盖）:
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `APP__REQUEST_TIMEOUT` | 30 | 全局请求超时秒数（SSE 豁免） |
+| `APP__RATE_LIMIT_ENABLED` | true | 限流中间件开关 |
+| `LLM__MAX_CONCURRENCY` | 10 | LLM 并发请求上限 |
+| `EMBEDDING__MAX_CONCURRENCY` | 20 | Embedding 并发请求上限 |
+
 **关键文件**:
+- 压测脚本: `tests/load/locustfile.py`
+- Mock LLM: `tests/load/mock_llm_server.py`
+- 数据灌入: `scripts/seed_test_data.py`
+- 指标定义: `src/observability/metrics.py`
+- 超时中间件: `src/orchestration/middleware/timeout.py`
 - 方案详情: `.claude/plans/snazzy-squishing-penguin.md`
-- Memory: `[[stress-testing-plan]]`
-- 需新建 12 个文件，修改 9 个文件
 
 ---
 
-## 未提交的代码变更（git status）
+## 架构改进记录
 
-10 个文件已修改但未提交：
-- `providers/` 提取 — LLM 客户端从 generation/ 下沉到独立基础设施层
-- `orchestration/jobs/` — API 层与业务逻辑解耦
-- `BM25 知识库隔离` — 修复跨知识库搜索结果泄漏
-- 向后兼容 re-exports (`__getattr__` 惰性加载)
+### v2.0 架构优化（本轮完成）
+- **providers/ 提取** — LLM 客户端从 generation/ 下沉到独立基础设施层
+- **orchestration/jobs/** — API 层与业务逻辑解耦
+- **BM25 知识库隔离** — 修复跨知识库搜索结果泄漏
+- **HyDE 下沉** — 从 orchestration 移到 generation 层（修复分层违规）
+- **指标定义下沉** — 从 orchestration/middleware 移到 observability（修复分层违规）
+- **AsyncOpenAI 迁移** — LLM/Embedding 客户端从同步 SDK 迁移到原生异步
+- **Redis scan()** — 废弃 keys()，新增非阻塞 scan()
+- **并发控制** — LLM/Embedding 全局 Semaphore 限流
+- **超时保护** — 全局请求超时中间件（SSE 豁免）
+- **Alembic 迁移** — 手动创建初始迁移脚本
+
+### 向后兼容 re-exports
+- `orchestration/middleware/metrics.py` → `observability/metrics.py`
+- `orchestration/query_preprocessor.py` → `generation/hyde.py`
 
 ---
 
@@ -85,11 +108,15 @@ make run          # 启动后端
 make test         # 全部测试
 make lint         # Ruff + MyPy
 make docker       # Docker 全栈启动
+
+# 压测
+python scripts/seed_test_data.py --reset    # 预灌入测试数据
+locust -f tests/load/locustfile.py --headless -u 100 -r 10 --run-time 5m --host http://localhost:8000
 ```
 
 ## 恢复上下文
 
 下次打开时说：
-- "继续压力测试方案" → 读 plan 文件 + 任务列表
 - "回顾系统状态" → 读 project-status.md + git status
-- "开始实施 Phase X" → 读 plan + 执行对应任务
+- "开始压测" → 启动 mock LLM + seed_test_data.py + locust
+- "架构 review" → 读 architecture-reference.md + 本文件架构改进记录

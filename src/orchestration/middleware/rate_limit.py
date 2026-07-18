@@ -11,6 +11,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from src.shared.config import settings
 from src.shared.database.redis import redis_client
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
+        # 限流开关：压测/调试时可关闭
+        if not settings.app.rate_limit_enabled:
+            return await call_next(request)
+
         path = request.url.path
 
         # 公开路径跳过

@@ -17,6 +17,7 @@ from src.shared.models.schemas import (
 from src.shared.exceptions import NotFoundError, ValidationError
 from src.orchestration.services import get_generation_service
 from src.orchestration.pagination import paginate, get_offset_limit, paginated_select
+from src.orchestration.middleware.metrics import EXAM_REQUESTS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/exam", tags=["题库"])
@@ -36,7 +37,9 @@ async def generate_questions(req: ExamGenerateRequest, db: AsyncSession = Depend
             question_count=req.question_count,
             difficulty=req.difficulty,
         )
+        EXAM_REQUESTS.labels(question_type=req.question_type, action="generate").inc()
     except Exception as e:
+        EXAM_REQUESTS.labels(question_type=req.question_type, action="generate_error").inc()
         raise ValidationError(f"出题失败: {str(e)}")
 
     record = ExamRecord(
@@ -108,7 +111,9 @@ async def grade_answers(req: ExamGradeRequest, db: AsyncSession = Depends(get_db
             student_answers=req.answers,
             knowledge_base_id=record.knowledge_base_id,
         )
+        EXAM_REQUESTS.labels(question_type=record.question_type, action="grade").inc()
     except Exception as e:
+        EXAM_REQUESTS.labels(question_type=record.question_type, action="grade_error").inc()
         raise ValidationError(f"批改失败: {str(e)}")
 
     record.scores = result["details"]

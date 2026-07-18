@@ -23,6 +23,7 @@ class LLMConfig(BaseSettings):
     model: str = Field(default="deepseek-chat", description="模型名")
     max_retries: int = Field(default=3, ge=0, le=10, description="最大重试次数")
     retry_backoff: float = Field(default=2.0, ge=1.0, description="退避倍数")
+    max_concurrency: int = Field(default=10, ge=1, le=100, description="LLM 并发请求上限（Semaphore 限流，防 API 限速）")
 
 
 class EmbeddingConfig(BaseSettings):
@@ -34,6 +35,7 @@ class EmbeddingConfig(BaseSettings):
     api_key: SecretStr = Field(default=SecretStr("ollama"), description="Embedding API 密钥")
     # 本地模式
     local_model: str = Field(default="shibing624/text2vec-base-chinese", description="本地 sentence-transformers 模型名")
+    max_concurrency: int = Field(default=20, ge=1, le=100, description="Embedding 并发请求上限（Semaphore 限流）")
 
     @field_validator("api_base_url")
     @classmethod
@@ -154,6 +156,8 @@ class AppConfig(BaseSettings):
     async_ingestion: bool = Field(default=False, description="P1-C5: 文档入库走 ARQ 异步队列（生产 True，开发 False 同步）")
     api_key: SecretStr = Field(default=SecretStr(""), description="API 鉴权密钥（为空则跳过鉴权）")
     cors_origins: list[str] = Field(default=["http://localhost:5173"], description="CORS 允许的来源")
+    request_timeout: int = Field(default=30, ge=1, le=300, description="全局请求超时（秒）；SSE 流式端点豁免")
+    rate_limit_enabled: bool = Field(default=True, description="限流中间件开关（压测/调试可关闭）")
 
     def get_upload_dir(self) -> str:
         if self.upload_dir:

@@ -18,6 +18,7 @@ from src.orchestration.services import get_generation_service
 from src.orchestration.session import session_manager
 from src.orchestration.pagination import paginate, get_offset_limit, paginated_select
 from src.observability.retrieval_logger import retrieval_logger
+from src.orchestration.middleware.metrics import QA_REQUESTS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/qa", tags=["问答"])
@@ -40,13 +41,24 @@ async def ask_question(req: QARequest, db: AsyncSession = Depends(get_db)):
         history = await session_manager.get_history(req.session_id, db) + history
 
     gen_svc = get_generation_service()
-    result = await gen_svc.qa(
-        question=req.question,
-        knowledge_base_id=req.knowledge_base_id,
-        top_k=req.top_k,
-        use_rerank=req.use_rerank,
-        history=history if history else None,
-    )
+    try:
+        result = await gen_svc.qa(
+            question=req.question,
+            knowledge_base_id=req.knowledge_base_id,
+            top_k=req.top_k,
+            use_rerank=req.use_rerank,
+            history=history if history else None,
+        )
+        QA_REQUESTS.labels(
+            knowledge_base_id=str(req.knowledge_base_id or "global"),
+            status="ok",
+        ).inc()
+    except Exception:
+        QA_REQUESTS.labels(
+            knowledge_base_id=str(req.knowledge_base_id or "global"),
+            status="error",
+        ).inc()
+        raise
 
     # 保存对话历史
     if req.session_id:
@@ -82,19 +94,30 @@ async def ask_question_stream(req: QARequest, db: AsyncSession = Depends(get_db)
     answer_buffer: list[str] = []
 
     async def generate():
-        async for chunk in gen_svc.qa_stream(
-            question=req.question,
-            knowledge_base_id=req.knowledge_base_id,
-            top_k=req.top_k,
-            use_rerank=req.use_rerank,
-            history=history if history else None,
-        ):
-            yield chunk
-            # 提取纯文本（去掉 SSE 格式 "data: ...\n\n"），仅用于会话历史
-            if chunk.startswith("data: ") and chunk.endswith("\n\n"):
-                inner = chunk[6:-2]
-                if inner != "[DONE]":
-                    answer_buffer.append(inner)
+        try:
+            async for chunk in gen_svc.qa_stream(
+                question=req.question,
+                knowledge_base_id=req.knowledge_base_id,
+                top_k=req.top_k,
+                use_rerank=req.use_rerank,
+                history=history if history else None,
+            ):
+                yield chunk
+                # 提取纯文本（去掉 SSE 格式 "data: ...\n\n"），仅用于会话历史
+                if chunk.startswith("data: ") and chunk.endswith("\n\n"):
+                    inner = chunk[6:-2]
+                    if inner != "[DONE]":
+                        answer_buffer.append(inner)
+            QA_REQUESTS.labels(
+                knowledge_base_id=str(req.knowledge_base_id or "global"),
+                status="ok",
+            ).inc()
+        except Exception:
+            QA_REQUESTS.labels(
+                knowledge_base_id=str(req.knowledge_base_id or "global"),
+                status="error",
+            ).inc()
+            raise
 
         # 流式结束后持久化 assistant 回答
         if req.session_id:

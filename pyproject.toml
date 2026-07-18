@@ -38,6 +38,7 @@ dev = [
     "mypy>=1.13.0",
     "requests>=2.31.0",
     "alembic>=1.13.0",
+    "locust>=2.20.0",
 ]
 ragas = [
     "ragas>=0.2.0",

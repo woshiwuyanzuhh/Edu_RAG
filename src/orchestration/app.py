@@ -33,7 +33,7 @@ from src.shared.cache import set_redis_client
 from src.shared.database.mysql import init_mysql, close_mysql
 from src.shared.database.redis import redis_client
 from src.retrieval.vector_store import get_vector_store
-from src.orchestration.middleware import AuthMiddleware, RequestIDMiddleware, register_error_handlers
+from src.orchestration.middleware import AuthMiddleware, RequestIDMiddleware, TimeoutMiddleware, register_error_handlers
 from src.orchestration.middleware.rate_limit import RateLimitMiddleware
 
 logger = get_logger(__name__)
@@ -124,7 +124,8 @@ app = FastAPI(
 # ── 中间件注册（顺序重要）──
 app.add_middleware(RequestIDMiddleware)   # 1. 先注入 request_id
 app.add_middleware(AuthMiddleware)        # 2. 再鉴权
-app.add_middleware(RateLimitMiddleware)   # 3. 限流（P2-8）
+app.add_middleware(TimeoutMiddleware)     # 3. 超时保护（SSE 豁免）
+app.add_middleware(RateLimitMiddleware)   # 4. 限流（P2-8）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.app.cors_origins,

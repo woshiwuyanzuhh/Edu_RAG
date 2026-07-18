@@ -20,6 +20,7 @@ from src.shared.models.schemas import APIResponse
 from src.shared.exceptions import NotFoundError, UnsupportedFileType, FileTooLarge
 from src.orchestration.pagination import paginate, get_offset_limit, paginated_select
 from src.orchestration.jobs.ingestion import delete_document_resources, process_document_ingestion
+from src.orchestration.middleware.metrics import DOCUMENT_PROCESSED
 
 router = APIRouter(prefix="/api/documents", tags=["文档"])
 
@@ -130,6 +131,7 @@ async def upload_document(
         knowledge_base_id=knowledge_base_id,
         doc_type=doc_type,
     )
+    DOCUMENT_PROCESSED.labels(status="ok").inc()
 
     return APIResponse(
         message=f"文档上传成功，共 {chunk_count} 个片段",

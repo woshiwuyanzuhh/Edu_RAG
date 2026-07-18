@@ -20,6 +20,7 @@ from src.retrieval.filters import build_context, deduplicate_by_text
 from src.retrieval.query.expander import LLMQueryExpander
 from src.retrieval.keyword import get_bm25, build_bm25 as build_bm25_index
 from src.observability import Tracer
+from src.observability.metrics import RETRIEVAL_LATENCY
 
 logger = logging.getLogger(__name__)
 
@@ -80,24 +81,26 @@ class RetrievalService(IRetrievalService):
         # 1. 向量召回
         expander = self._get_expander()
         async with tracer.span("recall") as span:
-            vec_hits = await recall(
-                query=query,
-                embedder=self._embedder,
-                vector_store=self._vector_store,
-                expander=expander,
-                top_k=top_k * 2 if use_rerank else top_k,
-                knowledge_base_id=knowledge_base_id,
-                recall_multiplier=settings.retrieval.recall_multiplier,
-            )
+            with RETRIEVAL_LATENCY.labels(stage="vector").time():
+                vec_hits = await recall(
+                    query=query,
+                    embedder=self._embedder,
+                    vector_store=self._vector_store,
+                    expander=expander,
+                    top_k=top_k * 2 if use_rerank else top_k,
+                    knowledge_base_id=knowledge_base_id,
+                    recall_multiplier=settings.retrieval.recall_multiplier,
+                )
             span.metadata["vec_hit_count"] = len(vec_hits)
 
         # 2. 混合检索：BM25 关键词召回 + RRF 融合
         if hybrid and self._hybrid_ready(knowledge_base_id):
             async with tracer.span("keyword") as span:
-                bm25 = get_bm25(knowledge_base_id)
-                kw_results = await asyncio.to_thread(
-                    bm25.search, query, top_k=max(top_k * 2, 10)
-                )
+                with RETRIEVAL_LATENCY.labels(stage="keyword").time():
+                    bm25 = get_bm25(knowledge_base_id)
+                    kw_results = await asyncio.to_thread(
+                        bm25.search, query, top_k=max(top_k * 2, 10)
+                    )
                 max_score = max((score for _, score in kw_results), default=1.0) or 1.0
                 # 映射 BM25 结果到 SearchResult
                 kw_hits = []
@@ -123,12 +126,13 @@ class RetrievalService(IRetrievalService):
         # 3. 精排重排（可选）
         if use_rerank and self._llm_client and len(vec_hits) > top_k:
             async with tracer.span("rerank") as span:
-                vec_hits = await llm_rerank(
-                    query=query,
-                    candidates=vec_hits,
-                    llm_client=self._llm_client,
-                    top_k=top_k,
-                )
+                with RETRIEVAL_LATENCY.labels(stage="rerank").time():
+                    vec_hits = await llm_rerank(
+                        query=query,
+                        candidates=vec_hits,
+                        llm_client=self._llm_client,
+                        top_k=top_k,
+                    )
                 span.metadata["final_count"] = len(vec_hits)
 
         tracer.log_report()

@@ -377,6 +377,14 @@ websockets==16.1
 yarl==1.24.2
     # via aiohttp
 
+# ── 以下包被 pip-compile 遗漏，手动补充 ──
+arq>=0.26.0
+    # via edu_rag (pyproject.toml) — pip-compile bug 遗漏
+prometheus-fastapi-instrumentator>=7.0.0
+    # via edu_rag (pyproject.toml monitoring)
+prometheus-client>=0.21.0
+    # via prometheus-fastapi-instrumentator
+
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==83.0.0
     # via
