@@ -1,0 +1,23 @@
+# edu_rag 本地 frp 客户端 docker-compose
+#
+# 作用：在本地启动 frp 客户端，将本地 MySQL 和 Ollama 端口映射到云服务器。
+#
+# 启动：
+#   docker compose -f docker/docker-compose.frpc.yml up -d
+#
+# 前提：
+#   1. 本地 docker-compose.yml 中的 MySQL 端口映射为 3307:3306
+#   2. 本地 Ollama 运行在 11434 端口
+#   3. frpc.toml 中的 auth.token 与云上 frps.toml 一致
+
+version: "3.9"
+
+services:
+  frpc:
+    image: snowdreamtech/frpc:latest
+    container_name: edu_rag_frpc
+    network_mode: host
+    volumes:
+      - ./frp/frpc.toml:/etc/frp/frpc.toml:ro
+    restart: unless-stopped
+    # 日志查看：docker logs -f edu_rag_frpc

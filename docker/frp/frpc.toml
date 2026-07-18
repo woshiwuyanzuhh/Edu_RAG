@@ -1,0 +1,49 @@
+# edu_rag frp 客户端配置（部署在本地服务器）
+#
+# 作用：将本地的 MySQL 和 Ollama 端口通过 frp 隧道暴露到云服务器。
+#       云服务器上的容器可以通过 frps 服务名访问本地服务。
+#
+# 部署：在本地运行
+#   docker run -d --name frpc --network host \
+#     -v ./docker/frp/frpc.toml:/etc/frp/frpc.toml \
+#     snowdreamtech/frpc
+#
+# 或者直接用本地 frpc 二进制：
+#   ./frpc -c docker/frp/frpc.toml
+
+serverAddr = "116.62.121.27"
+serverPort = 7000
+
+# 认证 token（必须与 frps.toml 一致，部署时通过 scripts/setup_frp.sh 生成）
+auth.token = "CHANGE_ME_TO_STRONG_TOKEN"
+
+# 日志
+log.to = "/dev/stdout"
+log.level = "info"
+
+# ─── 本地 MySQL 映射到云上 13306 ───
+# 云上从库通过 frps:13306 连接本地主库做主从复制
+[[proxies]]
+name = "local-mysql"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 3307        # 本地 Docker MySQL 映射的宿主机端口
+remotePort = 13306      # 云上 frps 暴露的端口
+
+# ─── 本地 Ollama 映射到云上 11434 ───
+# 云上 app 通过 frps:11434 调用本地 Embedding
+[[proxies]]
+name = "local-ollama"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 11434       # 本地 Ollama 端口
+remotePort = 11434      # 云上 frps 暴露的端口
+
+# ─── 本地 App 映射到云上 18000 ───
+# Nginx 通过 frps:18000 将流量转发到本地主 app
+[[proxies]]
+name = "local-app"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8000        # 本地 App 端口
+remotePort = 18000      # 云上 frps 暴露的端口

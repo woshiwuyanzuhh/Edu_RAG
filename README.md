@@ -194,12 +194,17 @@ pytest tests/quality/ -v    # RAGAS 质量评估
 ## 📖 参考文档
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — 完整架构文档
+- [CHANGELOG.md](CHANGELOG.md) — 变更日志（时间倒序）
+- [CLAUDE.md](CLAUDE.md) — AI 助手上下文
 - [docs/架构设计与完整链路分析.md](docs/架构设计与完整链路分析.md) — 深度剖析
 - [docs/系统架构设计准则.md](docs/系统架构设计准则.md) — 8 条架构原则
-- [docs/code-review-2026-07-18.md](docs/code-review-2026-07-18.md) — 最新项目 Review
+- [docs/架构演进建议.md](docs/架构演进建议.md) — 架构演进方向
+- [docs/code-review-2026-07-18.md](docs/code-review-2026-07-18.md) — 项目 Review（4.8/5）
+- [docs/load-test-report-2026-07-18.md](docs/load-test-report-2026-07-18.md) — 压力测试报告
 - [docs/启动与使用文档.md](docs/启动与使用文档.md) — 部署和使用说明
-- [docs/disaster-recovery.md](docs/disaster-recovery.md) — 容灾方案
-- [CLAUDE.md](CLAUDE.md) — AI 助手上下文
+- [docs/disaster-recovery.md](docs/disaster-recovery.md) — 容灾切换手册（已上线）
+- [docs/dr-deploy-runbook.md](docs/dr-deploy-runbook.md) — 容灾部署运行手册
+- [docs/cloud-deployment-checklist.md](docs/cloud-deployment-checklist.md) — 云服务器部署清单
 
 ## 📄 License
 

@@ -21,6 +21,7 @@ dependencies = [
     "pymilvus>=2.4.0",
     "sentence-transformers>=3.0.0",
     "PyMuPDF>=1.25.0",
+    "pikepdf>=8.0.0",
     "python-docx>=1.1.0",
     "markdown>=3.7.0",
     "python-dotenv>=1.0.0",
@@ -45,6 +46,12 @@ ragas = [
 ]
 monitoring = [
     "prometheus-fastapi-instrumentator>=7.0.0",
+]
+aliyun = [
+    "oss2>=2.18.0",
+    "alibabacloud_alidns20150109>=3.0.0",
+    "alibabacloud_cms20190101>=3.0.0",
+    "alibabacloud_lighthouse20201230>=2.0.0",
 ]
 
 [project.scripts]

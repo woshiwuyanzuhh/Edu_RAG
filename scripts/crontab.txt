@@ -1,0 +1,5 @@
+# edu_rag 定时任务
+# 每分钟故障检测
+* * * * * cd /opt/edu_rag && /usr/bin/python3 scripts/failover_check.py >> /var/log/edu_rag_failover.log 2>&1
+# 每天凌晨3点备份
+0 3 * * * cd /opt/edu_rag && /usr/bin/python3 scripts/backup.py >> /var/log/edu_rag_backup.log 2>&1

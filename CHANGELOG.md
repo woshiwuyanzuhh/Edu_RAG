@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-07-19 — 容灾系统上线（本地+云双活）
+
+**范围**: 完整容灾系统部署，本地主 + 云备机，frp 内网穿透，自动故障转移
+
+### 部署环境
+- **云服务器**: 阿里云轻量 2C4G，50GB，杭州（`116.62.121.27`，Ubuntu 22.04）
+- **本地服务器**: 成都联通家庭宽带（动态公网 IP `101.204.208.80`）
+- **内存优化**: 4GB swap + 4GB 优化版 compose（不跑 Ollama/Worker/Sentinel）
+
+### 新增组件
+- **frp 内网穿透**: 3条隧道（App:18000、MySQL:13306、Ollama:11434）
+- **Nginx 统一入口**: `:80`，被动健康检查，primary→backup 自动切换
+- **MySQL 主从复制**: 本地主→云从，通过 frp 隧道，异步复制
+- **定时故障检测**: 每分钟 cron 执行 `failover_check.py`
+- **定时备份**: 每天凌晨3点 cron 执行 `backup.py`
+
+### 新增文件
+- `docker/docker-compose.cloud.4gb.yml` — 4GB 内存优化版 compose
+- `docker/docker-compose.frpc.yml` — 本地 frp 客户端 compose
+- `docker/frp/frps.toml` / `frpc.toml` — frp 服务端/客户端配置
+- `scripts/setup_swap.sh` — swap 配置脚本
+- `scripts/setup_frp.sh` — frp token 生成脚本
+- `scripts/crontab.txt` — 定时任务配置
+- `docs/dr-deploy-runbook.md` — 部署运行手册
+
+### 验证结果
+- ✅ frp 隧道：3个代理全部 online
+- ✅ MySQL 主从：IO+SQL Running，复制延迟 <1s
+- ✅ 健康检查：mysql/redis/vector_store 全部正常
+- ✅ 故障转移：本地停止→20秒内切云上（RTO≈20s）
+- ✅ 故障恢复：本地恢复→自动切回
+- ✅ 内存使用：1.3GB / 3.4GB（+4GB swap）
+
+---
+
 ## 2026-07-18 (夜) — 工程化优化轮（Docker/QA流式/LLM缓存）
 
 **范围**: 7 项工程化优化任务，已完成 4 项

@@ -103,6 +103,7 @@ services:
     restart: unless-stopped
     # 主从复制需手动执行：CHANGE MASTER TO MASTER_HOST='<本地主IP>', ...; START REPLICA;
 
+  # ── 云上 Redis 主（本地 Redis 故障时，Sentinel 将此提升为主）──
   redis_cloud:
     image: redis:7-alpine
     ports:
@@ -110,6 +111,45 @@ services:
     volumes:
       - redis_cloud_data:/data
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?必须设置 REDIS_PASSWORD 环境变量}
+    restart: unless-stopped
+
+  # ── Redis 从节点（复制 redis_cloud，Sentinel 仲裁节点）──
+  redis_slave:
+    image: redis:7-alpine
+    ports:
+      - "6382:6379"
+    volumes:
+      - ./redis/replica.conf:/etc/redis/replica.conf:ro
+      - redis_slave_data:/data
+    # 部署时需将 REDIS_PASSWORD_PLACEHOLDER 替换为实际密码
+    command: >
+      sh -c '
+        sed "s/REDIS_PASSWORD_PLACEHOLDER/$${REDIS_PASSWORD}/g" /etc/redis/replica.conf > /tmp/replica.conf &&
+        redis-server /tmp/replica.conf --requirepass "$${REDIS_PASSWORD}"
+      '
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?必须设置 REDIS_PASSWORD 环境变量}
+    depends_on:
+      - redis_cloud
+    restart: unless-stopped
+
+  # ── Redis Sentinel（监控 + 自动故障转移）──
+  sentinel:
+    image: redis:7-alpine
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./redis/sentinel.conf:/etc/redis/sentinel.conf.template:ro
+    command: >
+      sh -c '
+        sed "s/REDIS_PASSWORD_PLACEHOLDER/$${REDIS_PASSWORD}/g" /etc/redis/sentinel.conf.template > /tmp/sentinel.conf &&
+        redis-sentinel /tmp/sentinel.conf --port 26379
+      '
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?必须设置 REDIS_PASSWORD 环境变量}
+    depends_on:
+      - redis_cloud
+      - redis_slave
     restart: unless-stopped
 
   ollama_cloud:
@@ -169,6 +209,7 @@ services:
 volumes:
   mysql_cloud_data:
   redis_cloud_data:
+  redis_slave_data:
   ollama_cloud_data:
   etcd_cloud_data:
   minio_cloud_data:

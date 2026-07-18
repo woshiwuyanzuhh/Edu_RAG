@@ -1,0 +1,14 @@
+node_modules/
+.git/
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+data/retrieval_logs/
+data/backups/
+frontend/node_modules/
+frontend/dist/
+*.pyc
+.workbuddy/
+playwright-report/
+test-results/

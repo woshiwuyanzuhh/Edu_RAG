@@ -41,7 +41,16 @@ python tests/load/mock_llm_server.py
 locust -f tests/load/locustfile.py --headless -u 100 -r 10 --run-time 5m --host http://localhost:8000
 ```
 
-压测状态: 核心任务已完成（8/9），仅剩云环境 Docker Compose（需云服务器）。
+压测状态: ✅ 全部完成（L1/L2/L3 共 9 轮，0% 系统失败率）。报告见 `docs/load-test-report-2026-07-18.md`。
+
+## 容灾系统（已上线）
+
+- **云服务器**: `116.62.121.27`（阿里云轻量 2C4G，杭州，Ubuntu 22.04）
+- **架构**: 本地主 + 云备机，frp 内网穿透，Nginx 自动故障转移
+- **RTO**: ~20秒 | **RPO**: 秒级（MySQL 异步复制）
+- **入口**: `http://116.62.121.27`（Nginx 统一入口）
+- **frp 仪表盘**: `http://116.62.121.27:7500`（admin / `<FRP_DASHBOARD_PASSWORD>`）
+- **详细文档**: [docs/disaster-recovery.md](docs/disaster-recovery.md) | [docs/dr-deploy-runbook.md](docs/dr-deploy-runbook.md)
 
 ## 关键配置项
 
@@ -63,6 +72,10 @@ locust -f tests/load/locustfile.py --headless -u 100 -r 10 --run-time 5m --host 
 | `tests/load/locustfile.py` | Locust 压测脚本 |
 | `scripts/seed_test_data.py` | 压测数据预灌入 |
 | `docs/code-review-2026-07-18.md` | 最新项目 Review |
+| `docs/disaster-recovery.md` | 容灾切换手册 |
+| `docs/dr-deploy-runbook.md` | 容灾部署运行手册 |
+| `docker/docker-compose.cloud.4gb.yml` | 4GB 优化版云部署 |
+| `docker/frp/frps.toml` / `frpc.toml` | frp 内网穿透配置 |
 
 ## 记忆文件
 
@@ -71,9 +84,15 @@ locust -f tests/load/locustfile.py --headless -u 100 -r 10 --run-time 5m --host 
 | 文件 | 内容 |
 |------|------|
 | `MEMORY.md` | 索引（自动加载） |
-| `project-status.md` | 项目当前状态 |
+| `project-status.md` | 项目当前状态（2026-07-19 更新） |
 | `architecture-reference.md` | 架构快速参考 |
+| `architecture-assessment.md` | 架构评估（4.8/5） |
+| `stress-testing-plan.md` | 压测方案（已完成） |
+| `changelog.md` | 修改日志（2026-07-09） |
+| `troubleshooting-2026-07-09.md` | 全功能测试问题与修复 |
 | `git-workflow.md` | Git 工作流（HTTPS + 凭据） |
+
+> 另有 `.workbuddy/memory/` 目录保存项目长期笔记（MEMORY.md + 日期快照）。
 
 ## 常用命令
 
@@ -89,3 +108,4 @@ make docker       # Docker 全栈启动
 - "回顾系统状态" → 读 project-status.md + git status
 - "开始压测" → 启动 mock LLM + seed_test_data.py + locust
 - "架构 review" → 读 docs/code-review-2026-07-18.md + CHANGELOG.md
+- "容灾状态" → 读 docs/disaster-recovery.md + SSH 检查云服务器容器状态

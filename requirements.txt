@@ -193,6 +193,8 @@ pymysql==1.2.0
     # via
     #   aiomysql
     #   edu_rag (pyproject.toml)
+pikepdf>=8.0.0
+    # via edu_rag (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via pandas
 python-docx==1.2.0

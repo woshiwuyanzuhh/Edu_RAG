@@ -164,11 +164,54 @@ app.include_router(docs_router)
 app.include_router(qa_router)
 app.include_router(exam_router)
 
-# ── 健康检查 ──
+# ── 健康检查（P1-DR8: 分离 liveness / readiness）──
 
 @app.get("/health")
 async def health_check():
-    """P0-C8: 探活依赖（MySQL+Redis+向量库），任一失败返回 503，供容灾 LB 健康检查。"""
+    """综合健康检查（向后兼容）。
+
+    等同于 readiness 检查，探活 MySQL+Redis+向量库。
+    任一失败返回 503，供容灾 LB 健康检查。
+    """
+    return await _readiness_check()
+
+
+@app.get("/health/live")
+async def liveness_check():
+    """Liveness 探活 — 进程是否存活。
+
+    轻量级检查：只要进程能响应即返回 200。
+    不检查依赖（MySQL/Redis/Milvus），避免依赖抖动导致 Pod 被杀。
+
+    Kubernetes/Nginx 用法：
+        livenessProbe: GET /health/live
+    """
+    return ORJSONResponse(
+        status_code=200,
+        content={
+            "status": "alive",
+            "service": "edu_rag",
+            "version": "2.0.0",
+            "timestamp": int(asyncio.get_event_loop().time()),
+        },
+    )
+
+
+@app.get("/health/ready")
+async def readiness_check():
+    """Readiness 探活 — 是否准备好接收流量。
+
+    重量级检查：MySQL+Redis+Milvus 全部可用才返回 200。
+    任一依赖不可用返回 503，LB 将此实例从负载均衡中移除。
+
+    Kubernetes/Nginx 用法：
+        readinessProbe: GET /health/ready
+    """
+    return await _readiness_check()
+
+
+async def _readiness_check():
+    """Readiness 检查实现 — 探活所有依赖。"""
     checks = {"mysql": False, "redis": False, "vector_store": False}
 
     # MySQL

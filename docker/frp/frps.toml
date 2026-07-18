@@ -1,0 +1,30 @@
+# edu_rag frp 服务端配置（部署在云服务器）
+#
+# 作用：接收本地 frp 客户端连接，将本地 MySQL 和 Ollama 端口映射到云上。
+#       这样云上容器可以通过 frps 服务名访问本地服务。
+#
+# 部署时 auth.token 会被 docker-compose 用环境变量 FRP_TOKEN 覆盖。
+# 仪表盘密码同理用 FRP_DASHBOARD_PASSWORD 覆盖。
+
+bindPort = 7000
+
+# 认证 token（部署时通过 scripts/setup_frp.sh 或环境变量 FRP_TOKEN 覆盖）
+auth.token = "CHANGE_ME_TO_STRONG_TOKEN"
+
+# 仪表盘（调试用，部署后访问 http://云IP:7500）
+webServer.addr = "0.0.0.0"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "CHANGE_ME_ADMIN_PASSWORD"
+
+# 日志
+log.to = "/dev/stdout"
+log.level = "info"
+log.maxDays = 3
+
+# 允许的代理端口范围（限制客户端只能映射这些端口）
+allowPorts = [
+  { start = 13306, end = 13306 },  # 本地 MySQL 映射
+  { start = 11434, end = 11434 },  # 本地 Ollama 映射
+  { start = 18000, end = 18000 },  # 本地 App 映射
+]

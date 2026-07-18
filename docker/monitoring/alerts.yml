@@ -1,0 +1,158 @@
+# edu_rag Prometheus 告警规则（P1-DR11）
+#
+# 部署：
+#   1. 将此文件放入 Prometheus 的 rules 目录
+#   2. 在 prometheus.yml 中添加:
+#      rule_files:
+#        - "edu_rag_alerts.yml"
+#   3. reload Prometheus: curl -X POST http://localhost:9090/-/reload
+#
+# 告警通知配置（Alertmanager）见: docker/monitoring/alertmanager.yml
+
+groups:
+  # ─── 服务可用性 ───
+  - name: edu_rag_availability
+    rules:
+      # 服务不可用
+      - alert: EduRagServiceDown
+        expr: up{job="edu_rag"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "edu_rag 服务不可用"
+          description: "{{ $labels.instance }} 已离线超过 1 分钟"
+
+      # 健康检查失败（依赖不可用）
+      - alert: EduRagHealthDegraded
+        expr: http_status{path="/health"} == 503
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "edu_rag 健康检查失败"
+          description: "依赖（MySQL/Redis/Milvus）不可用，实例 {{ $labels.instance }}"
+
+  # ─── HTTP 性能 ───
+  - name: edu_rag_http
+    rules:
+      # 高延迟
+      - alert: EduRagHighLatency
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job="edu_rag"}[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "edu_rag P99 延迟过高"
+          description: "P99 延迟 {{ $value }}s 超过 5s 阈值"
+
+      # 错误率高
+      - alert: EduRagHighErrorRate
+        expr: rate(http_requests_total{job="edu_rag",status=~"5.."}[5m]) / rate(http_requests_total{job="edu_rag"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "edu_rag 错误率过高"
+          description: "5xx 错误率 {{ $value | humanizePercentage }} 超过 5%"
+
+  # ─── 业务指标 ───
+  - name: edu_rag_business
+    rules:
+      # QA 请求失败率高
+      - alert: EduRagQAFailureRate
+        expr: rate(edu_rag_qa_requests_total{status="error"}[5m]) / rate(edu_rag_qa_requests_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "QA 请求失败率过高"
+          description: "知识库 {{ $labels.knowledge_base_id }} 的 QA 失败率 {{ $value | humanizePercentage }}"
+
+      # LLM 延迟过高
+      - alert: EduRagLLMHighLatency
+        expr: histogram_quantile(0.95, rate(edu_rag_llm_latency_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM 调用延迟过高"
+          description: "模型 {{ $labels.model }} 的 P95 延迟 {{ $value }}s 超过 10s"
+
+      # 检索延迟过高
+      - alert: EduRagRetrievalHighLatency
+        expr: histogram_quantile(0.95, rate(edu_rag_retrieval_latency_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "检索延迟过高"
+          description: "检索阶段 {{ $labels.stage }} 的 P95 延迟 {{ $value }}s 超过 2s"
+
+  # ─── MySQL 复制监控 ───
+  - name: edu_rag_mysql_replication
+    rules:
+      # 主从复制中断
+      - alert: MySQLReplicationBroken
+        expr: mysql_slave_status_slave_io_running == 0 or mysql_slave_status_slave_sql_running == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL 主从复制中断"
+          description: "IO 线程或 SQL 线程已停止"
+
+      # 复制延迟过大
+      - alert: MySQLReplicationLag
+        expr: mysql_slave_status_seconds_behind_master > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL 复制延迟过大"
+          description: "延迟 {{ $value }}s 超过 30s"
+
+  # ─── Redis 监控 ───
+  - name: edu_rag_redis
+    rules:
+      # Redis 内存使用过高
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 内存使用率过高"
+          description: "内存使用率 {{ $value | humanizePercentage }}"
+
+      # Redis 连接数过高
+      - alert: RedisHighConnections
+        expr: redis_connected_clients > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 连接数过高"
+          description: "当前连接数 {{ $value }}"
+
+  # ─── 容灾切换监控 ───
+  - name: edu_rag_failover
+    rules:
+      # failover 被触发
+      - alert: EduRagFailoverTriggered
+        expr: increase(edu_rag_failover_triggered_total[1h]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "容灾切换被触发"
+          description: "过去 1 小时内发生了 {{ $value }} 次切换"
+
+      # 备机不可用（热备失效）
+      - alert: EduRagBackupDown
+        expr: up{job="edu_rag_backup"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "云上备机不可用"
+          description: "热备失效！本地故障时无法切换"

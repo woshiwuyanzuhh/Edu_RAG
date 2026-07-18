@@ -1,0 +1,138 @@
+# edu_rag 云上备机部署 — 4GB 内存优化版（P0-DR7）
+#
+# 针对阿里云轻量 2C4G 服务器优化：
+#   1. 不启动 Ollama（省 3-4GB），Embedding 通过 frp 连本地 Ollama
+#   2. 不启动 Redis 从节点 + Sentinel（简化为单 Redis，省 0.3GB）
+#   3. 不启动 ARQ Worker（热备只承接查询，省 0.4GB）
+#   4. App workers 减到 2 个（省 0.4GB）
+#   5. MySQL 限制内存（buffer_pool=256M）
+#   6. Milvus 限制内存
+#   7. 集成 frps（内网穿透，让云上访问本地 MySQL 和 Ollama）
+#
+# 内存预算（4GB + 4GB swap）：
+#   系统+Docker:  0.8 GB
+#   frps:         0.1 GB
+#   MySQL:        0.5 GB
+#   Redis:        0.2 GB
+#   etcd+minio:   0.5 GB
+#   Milvus:       1.0 GB
+#   App (2w):     0.5 GB
+#   Nginx:        0.1 GB
+#   ─────────────
+#   合计:         3.7 GB  (留 0.3GB 余量 + swap 兜底)
+#
+# 用法：
+#   docker compose -f docker/docker-compose.cloud.yml \
+#     -f docker/docker-compose.cloud.4gb.yml \
+#     --env-file .env.cloud up -d
+#
+# 恢复完整版（升级内存后）：
+#   docker compose -f docker/docker-compose.cloud.yml --env-file .env.cloud up -d
+
+services:
+  # ── frp 服务端：内网穿透，让云上访问本地 MySQL 和 Ollama ───
+  frps:
+    image: snowdreamtech/frps:latest
+    container_name: edu_rag_frps
+    restart: unless-stopped
+    ports:
+      - "7000:7000"    # frp 客户端连接端口（本地 frpc 连此端口）
+      - "7500:7500"    # frp 仪表盘（http://云IP:7500）
+    volumes:
+      - ./frp/frps.toml:/etc/frp/frps.toml:ro
+    # 部署前需将 frps.toml 中的 token 替换为实际值（或用 sed 覆盖）
+    command: ["-c", "/etc/frp/frps.toml"]
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # ── App: 2 workers（4GB 优化），Embedding 通过 frp 连本地 Ollama ───
+  app:
+    command: ["uvicorn", "src.orchestration.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+    environment:
+      # Embedding 通过 frp 连接本地 Ollama（frps 服务名:11434）
+      - EMBEDDING__PROVIDER=api
+      - EMBEDDING__API_BASE_URL=http://frps:11434/v1
+      - EMBEDDING__MODEL=bge-m3
+      - EMBEDDING__API_KEY=ollama
+    depends_on:
+      frps:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── 不启动 ARQ Worker（4GB 模式省内存）──
+  worker:
+    profiles: ["full"]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── MySQL: 限制内存，主从复制通过 frp 连本地主库 ───
+  mysql_cloud:
+    command: >
+      --max-connections=100
+      --innodb-buffer-pool-size=256M
+      --innodb-log-file-size=64M
+      --max-allowed-packet=16M
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ── Redis: 限制内存 ───
+  redis_cloud:
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
+  # ── 不启动 Redis 从节点 + Sentinel（4GB 模式简化）──
+  redis_slave:
+    profiles: ["full"]
+  sentinel:
+    profiles: ["full"]
+
+  # ── 不启动 Ollama（4GB 模式核心优化，省 3-4GB）──
+  ollama_cloud:
+    profiles: ["full"]
+
+  # ── Milvus: 限制内存 ───
+  milvus_cloud:
+    environment:
+      ETCD_ENDPOINTS: etcd_cloud:2379
+      MINIO_ADDRESS: minio_cloud:9000
+    deploy:
+      resources:
+        limits:
+          memory: 1280M
+
+  etcd_cloud:
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  minio_cloud:
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+# ── 共享网络：让 frps 和 app/mysql_cloud 在同一网络 ───
+networks:
+  default:
+    name: edu_rag_cloud
+    external: true

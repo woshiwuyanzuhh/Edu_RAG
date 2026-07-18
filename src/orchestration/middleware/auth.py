@@ -21,7 +21,7 @@ from src.shared.config import settings
 logger = logging.getLogger(__name__)
 
 # 无需鉴权的路径
-PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/redoc", "/favicon.ico"}
+PUBLIC_PATHS = {"/health", "/health/live", "/health/ready", "/nginx-health", "/docs", "/openapi.json", "/redoc", "/favicon.ico"}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
