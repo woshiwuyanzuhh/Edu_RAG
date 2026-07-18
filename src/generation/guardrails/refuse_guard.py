@@ -24,8 +24,14 @@ class RefuseGuard(IGuardrail):
 
         这里的 content 不是最终答案，而是上下文质量标志。
         context 中应包含检索的 chunks。
+
+        注意：如果 context 为 None 或不含 chunks 键（如首次 input 检查），
+        直接放行 — RefuseGuard 只在检索完成后才需要检查。
         """
-        chunks = context.get("chunks", []) if context else []
+        if not context or "chunks" not in context:
+            return GuardResult(passed=True)
+
+        chunks = context.get("chunks", [])
         if not chunks:
             return GuardResult(
                 passed=False,

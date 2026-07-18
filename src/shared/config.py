@@ -47,6 +47,7 @@ class EmbeddingConfig(BaseSettings):
 
 class VectorStoreConfig(BaseSettings):
     """向量数据库配置 — Milvus。"""
+    model_config = SettingsConfigDict(extra="ignore")
     milvus_host: str = Field(default="localhost", description="Milvus 主机地址")
     milvus_port: int = Field(default=19530, ge=1, le=65535, description="Milvus gRPC 端口")
 
@@ -149,6 +150,9 @@ class AppConfig(BaseSettings):
     cors_origins: list[str] = Field(default=["http://localhost:5173"], description="CORS 允许的来源")
     request_timeout: int = Field(default=30, ge=1, le=300, description="全局请求超时（秒）；SSE 流式端点豁免")
     rate_limit_enabled: bool = Field(default=True, description="限流中间件开关（压测/调试可关闭）")
+    rate_limit_default: int = Field(default=60, ge=1, description="普通 API 限流：每窗口最大请求数（按 IP+路径）")
+    rate_limit_llm: int = Field(default=20, ge=1, description="LLM 接口限流：每窗口最大请求数（按 IP+路径）")
+    rate_limit_window: int = Field(default=60, ge=1, description="限流窗口大小（秒）")
 
     def get_upload_dir(self) -> str:
         if self.upload_dir:

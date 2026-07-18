@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-07-18 (晚) — 压力测试执行 + 优化项落地
+
+**范围**: L1/L2/L3 共 9 轮压测 + 3 项压测优化修复
+
+### 压测结果
+- **L1 接入层** (Mock LLM): 50/100/200 并发，最优并发 100，QPS 63，P99 < 1s
+- **L2 检索层** (Mock LLM): 50/100/200 并发，Milvus+BM25 稳定，0% 系统失败
+- **L3 全链路** (真实 DeepSeek): 5/10/20 并发，0% 失败，QA P50=1.6s，P99=3.2s
+- **报告**: `docs/load-test-report-2026-07-18.md`
+
+### 优化修复
+- **MySQL max_connections** — docker-compose.yml 添加 `--max-connections=500`，200 并发 500 错误从 17.6% 降至 0%
+- **限流配置可配置化** — rate_limit 阈值从硬编码改为环境变量
+- **Dockerfile 依赖** — 加入 `locust>=2.20.0`，docker-compose.yml 添加 `build` 配置
+
+### 新增配置项
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `APP__RATE_LIMIT_DEFAULT` | 60 | 普通 API 限流（次/窗口） |
+| `APP__RATE_LIMIT_LLM` | 20 | LLM 接口限流（次/窗口） |
+| `APP__RATE_LIMIT_WINDOW` | 60 | 限流窗口大小（秒） |
+
+### 变更文件
+- `docker/docker-compose.yml` — MySQL max_connections + app build 配置
+- `docker/Dockerfile` — 加入 locust 依赖
+- `src/shared/config.py` — AppConfig 新增 3 个限流配置字段
+- `src/orchestration/middleware/rate_limit.py` — 硬编码改为从配置读取
+- `docs/load-test-report-2026-07-18.md` — 压测报告（新增）
+- `tests/load/locustfile.py` — 端点路径修正 (/api/knowledge → /api/kb)
+
+---
+
 ## 2026-07-18 — 压力测试方案实施
 
 **范围**: Phase 1-5 压测任务（8/9 完成，仅剩云环境 Docker）

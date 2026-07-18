@@ -1,10 +1,12 @@
 # edu_rag v2.0 — 全栈部署
 # 一键启动: docker compose -f docker/docker-compose.yml up -d
+# 注意: app/worker 使用已有镜像 + volume 挂载本地 src（避免重新 build）
 
 version: "3.9"
 
 services:
   app:
+    image: docker-app
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -22,15 +24,17 @@ services:
       - VECTOR_STORE__MILVUS_HOST=milvus
       - VECTOR_STORE__MILVUS_PORT=19530
       - EMBEDDING__PROVIDER=api
-      - EMBEDDING__API_BASE_URL=http://ollama:11434/v1
+      - EMBEDDING__API_BASE_URL=http://host.docker.internal:11434/v1
       - EMBEDDING__MODEL=bge-m3
       - EMBEDDING__API_KEY=ollama
       - LLM__API_KEY=${OPENAI_API_KEY}
       - LLM__BASE_URL=${OPENAI_BASE_URL:-https://api.deepseek.com/v1}
       - LLM__MODEL=${LLM_MODEL:-deepseek-chat}
       - APP__API_KEY=${APP_API_KEY:-}
+      - APP__RATE_LIMIT_ENABLED=${APP__RATE_LIMIT_ENABLED:-true}
     volumes:
       - ../data:/app/data
+      - ../src:/app/src
     depends_on:
       mysql:
         condition: service_healthy
@@ -42,9 +46,7 @@ services:
 
   # ── ARQ 异步任务 worker（P1-C5：文档入库异步处理，单写消除 BM25 竞争）──
   worker:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+    image: docker-app
     command: ["arq", "src.orchestration.worker.config.WorkerSettings"]
     environment:
       - MYSQL__HOST=mysql
@@ -58,7 +60,7 @@ services:
       - VECTOR_STORE__MILVUS_HOST=milvus
       - VECTOR_STORE__MILVUS_PORT=19530
       - EMBEDDING__PROVIDER=api
-      - EMBEDDING__API_BASE_URL=http://ollama:11434/v1
+      - EMBEDDING__API_BASE_URL=http://host.docker.internal:11434/v1
       - EMBEDDING__MODEL=bge-m3
       - EMBEDDING__API_KEY=ollama
       - LLM__API_KEY=${OPENAI_API_KEY}
@@ -67,6 +69,7 @@ services:
       - APP__ASYNC_INGESTION=true
     volumes:
       - ../data:/app/data
+      - ../src:/app/src
     depends_on:
       mysql:
         condition: service_healthy
@@ -85,6 +88,8 @@ services:
       MYSQL_DATABASE: edu_rag
     volumes:
       - mysql_data:/var/lib/mysql
+    # 压测发现: app(pool=30+overflow=50=80) + worker(80) = 160 > 默认 151 → Too many connections
+    command: --max-connections=500 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -102,6 +107,7 @@ services:
     restart: unless-stopped
 
   ollama:
+    profiles: ["full"]
     image: ollama/ollama:latest
     ports:
       - "11434:11434"
@@ -147,7 +153,7 @@ services:
     restart: unless-stopped
 
   milvus:
-    image: milvusdb/milvus:v2.4.10
+    image: milvusdb/milvus:v2.4.4
     command: ["milvus", "run", "standalone"]
     environment:
       ETCD_ENDPOINTS: etcd:2379

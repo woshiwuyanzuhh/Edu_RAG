@@ -9,7 +9,8 @@ RUN pip install --no-cache-dir uv
 
 COPY requirements.txt pyproject.toml ./
 # arq 在 pyproject.toml 中声明但被 pip-compile 遗漏，额外补充
-RUN uv pip install --system --no-cache -r requirements.txt "arq>=0.26.0"
+# locust 仅在 dev 可选依赖中，压测需要，一并安装
+RUN uv pip install --system --no-cache -r requirements.txt "arq>=0.26.0" "locust>=2.20.0"
 
 # ── 运行阶段 ──
 FROM python:3.10-slim

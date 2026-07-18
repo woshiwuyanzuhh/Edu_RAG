@@ -16,20 +16,13 @@ from src.shared.database.redis import redis_client
 
 logger = logging.getLogger(__name__)
 
-# 默认限制
-DEFAULT_RATE = 60     # 次/窗口
-DEFAULT_WINDOW = 60   # 秒
-
-# LLM 接口限制（更严格）
-LLM_RATE = 20
-LLM_WINDOW = 60
-
 
 def _get_limits(path: str) -> tuple[int, int]:
-    """根据路径返回 (max_requests, window_seconds)。"""
+    """根据路径返回 (max_requests, window_seconds)，从配置读取。"""
+    cfg = settings.app
     if path.startswith("/api/qa") or path.startswith("/api/exam"):
-        return LLM_RATE, LLM_WINDOW
-    return DEFAULT_RATE, DEFAULT_WINDOW
+        return cfg.rate_limit_llm, cfg.rate_limit_window
+    return cfg.rate_limit_default, cfg.rate_limit_window
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

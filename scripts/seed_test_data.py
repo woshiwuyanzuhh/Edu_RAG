@@ -293,6 +293,7 @@ async def main(kb_count: int, docs_per_kb: int, reset: bool):
 
     embedder = get_embedder()
     vector_store = get_vector_store()
+    await vector_store.connect()
     ingestion_service = IngestionService(embedder=embedder, vector_store=vector_store)
 
     total_chunks = 0

@@ -107,7 +107,7 @@ class EduRagUser(HttpUser):
     @task(5)
     def list_knowledge_bases(self):
         """知识库列表。"""
-        self.client.get("/api/knowledge", name="/api/knowledge")
+        self.client.get("/api/kb", name="/api/kb")
 
     @task(5)
     def exam_generate(self):
