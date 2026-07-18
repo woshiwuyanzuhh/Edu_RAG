@@ -292,8 +292,7 @@ yarl==1.24.2
     # via aiohttp
 
 # ── 以下包被 pip-compile 遗漏，手动补充 ──
-arq>=0.26.0
-    # via edu_rag (pyproject.toml) — pip-compile bug 遗漏
+# arq 移到 Dockerfile 用 --no-deps 安装（arq 的 redis<6 约束与 redis==8 冲突）
 prometheus-fastapi-instrumentator>=7.0.0
     # via edu_rag (pyproject.toml monitoring)
 prometheus-client>=0.21.0

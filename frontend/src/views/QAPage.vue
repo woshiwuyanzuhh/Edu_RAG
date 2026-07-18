@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
 import {
   MessageOutlined,
   SendOutlined,
@@ -63,6 +63,27 @@ function scrollToBottom() {
   })
 }
 
+// P-Opt: 流式输出时节流滚动（避免每个 token 都触发 scrollHeight 重排）
+let scrollTimer: ReturnType<typeof requestAnimationFrame> | null = null
+function scrollToBottomThrottled() {
+  if (scrollTimer) return
+  scrollTimer = requestAnimationFrame(() => {
+    scrollTimer = null
+    if (chatArea.value) chatArea.value.scrollTop = chatArea.value.scrollHeight
+  })
+}
+
+// P-Opt: 停止按钮
+function handleStop() {
+  if (streaming.value && currentController) {
+    currentController.abort()
+    streaming.value = false
+    retrieving.value = false
+  }
+}
+
+let currentController: AbortController | null = null
+
 function formatTime(ts: number) {
   const d = new Date(ts)
   const now = new Date()
@@ -95,6 +116,8 @@ async function handleAsk() {
 
   streaming.value = true
   retrieving.value = true
+  currentController = new AbortController()
+  let fullAnswer = ''
 
   try {
     const resp = await fetch('/api/qa/stream', {
@@ -105,6 +128,7 @@ async function handleAsk() {
         knowledge_base_id: kbId || null,
         top_k: topK.value,
       }),
+      signal: currentController.signal,
     })
 
     retrieving.value = false
@@ -128,7 +152,6 @@ async function handleAsk() {
     const reader = resp.body!.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
-    let fullAnswer = ''
     let sources: SourceItem[] = []
 
     while (true) {
@@ -158,18 +181,27 @@ async function handleAsk() {
           }
           fullAnswer += token
           chatStore.updateMessage(sessionId!, msgIndex, { content: fullAnswer })
-          scrollToBottom()
+          scrollToBottomThrottled()
         }
       }
     }
   } catch (e: any) {
-    chatStore.updateMessage(sessionId!, msgIndex, {
-      content: `请求失败: ${e.message}`,
-      streaming: false,
-    })
+    if (e.name === 'AbortError') {
+      chatStore.updateMessage(sessionId!, msgIndex, {
+        content: fullAnswer || '（已停止）',
+        streaming: false,
+      })
+    } else {
+      chatStore.updateMessage(sessionId!, msgIndex, {
+        content: `请求失败: ${e.message}`,
+        streaming: false,
+      })
+    }
   } finally {
     streaming.value = false
     retrieving.value = false
+    currentController = null
+    if (scrollTimer) { cancelAnimationFrame(scrollTimer); scrollTimer = null }
   }
 }
 
@@ -254,6 +286,11 @@ onMounted(() => {
   if (!chatStore.currentSessionId) {
     chatStore.createSession()
   }
+})
+
+onUnmounted(() => {
+  if (currentController) currentController.abort()
+  if (scrollTimer) cancelAnimationFrame(scrollTimer)
 })
 
 watch(() => chatStore.currentMessages, scrollToBottom, { deep: true })
@@ -381,15 +418,23 @@ watch(() => chatStore.currentMessages, scrollToBottom, { deep: true })
                 <RobotOutlined />
               </div>
               <div class="msg-bubble-ai">
-                <!-- 检索中 -->
+                <!-- 检索中：骨架屏 -->
                 <div v-if="retrieving && m.streaming && !m.content" class="retrieving-indicator">
                   <LoadingOutlined spin />
-                  <span>正在检索相关文档...</span>
+                  <span>正在检索相关文档</span>
+                  <span class="dot-anim">
+                    <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+                  </span>
                 </div>
 
-                <!-- 内容 -->
+                <!-- 内容 + 打字机光标 -->
                 <div v-if="m.content" class="markdown-body" v-html="renderMarkdown(m.content)"></div>
-                <span v-else-if="m.streaming && !retrieving" class="typing-cursor thinking-text">思考中</span>
+                <span v-if="m.streaming && m.content" class="typing-cursor-blink">▍</span>
+                <span v-else-if="m.streaming && !retrieving" class="thinking-text">
+                  思考中<span class="dot-anim">
+                    <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+                  </span>
+                </span>
 
                 <!-- 参考来源 -->
                 <template v-if="m.sources && m.sources.length">
@@ -459,8 +504,16 @@ watch(() => chatStore.currentMessages, scrollToBottom, { deep: true })
             @keydown.enter.exact.prevent="handleAsk"
           />
           <a-button
+            v-if="streaming"
+            danger
+            class="chat-send-btn"
+            @click="handleStop"
+          >
+            <span class="stop-icon">■</span>
+          </a-button>
+          <a-button
+            v-else
             type="primary"
-            :loading="streaming"
             :disabled="!question.trim()"
             class="chat-send-btn"
             @click="handleAsk"
@@ -739,6 +792,40 @@ watch(() => chatStore.currentMessages, scrollToBottom, { deep: true })
 .thinking-text {
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
+}
+
+/* P-Opt: 打字机光标闪烁 */
+.typing-cursor-blink {
+  display: inline-block;
+  color: var(--color-primary);
+  font-weight: bold;
+  animation: blink-cursor 1s steps(2) infinite;
+  margin-left: 2px;
+}
+@keyframes blink-cursor {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* P-Opt: 点点动画 */
+.dot-anim {
+  display: inline-flex;
+  gap: 1px;
+}
+.dot-anim .dot {
+  animation: dot-bounce 1.4s infinite ease-in-out;
+}
+.dot-anim .dot:nth-child(2) { animation-delay: 0.2s; }
+.dot-anim .dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dot-bounce {
+  0%, 80%, 100% { opacity: 0.2; }
+  40% { opacity: 1; }
+}
+
+/* P-Opt: 停止按钮 */
+.stop-icon {
+  font-size: 14px;
+  line-height: 1;
 }
 
 /* 参考来源 */

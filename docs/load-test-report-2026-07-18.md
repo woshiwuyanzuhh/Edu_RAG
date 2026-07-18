@@ -171,7 +171,7 @@ Locust 用户行为分布（`tests/load/locustfile.py`）：
 
 ### 后续优化方向
 
-- [ ] MySQL 连接池调大（`MYSQL__POOL_SIZE=20`）
-- [ ] 生产限流设为 100 并发（`APP__RATE_LIMIT_ENABLED=true` + 调整阈值）
+- [x] MySQL 连接池调大（`--max-connections=500`，200 并发 500 错误从 17.6%→0%）
+- [x] 生产限流配置恢复（`APP__RATE_LIMIT_ENABLED=true` + 阈值可配置化）
 - [ ] QA 端点流式输出优化（减少用户感知延迟）
 - [ ] LLM 响应缓存（相似问题命中缓存，降低 API 调用）

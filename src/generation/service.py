@@ -10,6 +10,7 @@ import logging
 from typing import AsyncGenerator
 
 from src.shared.config import settings
+from src.shared.cache import cache_strategy, make_cache_key
 from src.interfaces.generation_service import IGenerationService
 from src.interfaces.llm import ILLMClient
 from src.interfaces.retrieval_service import IRetrievalService
@@ -77,8 +78,21 @@ class GenerationService(IGenerationService):
         use_rerank: bool = True,
         history: list[dict] | None = None,
     ) -> dict:
+        # P-Opt: LLM 响应缓存 — 精确匹配命中 Redis，避免重复调用 LLM
+        # 仅对无历史对话的单轮 QA 缓存（多轮对话上下文不同）
+        cache_ttl = getattr(settings, 'qa_cache_ttl', 1800)  # 默认 30 分钟
+        cache_key = make_cache_key("qa_llm", question, knowledge_base_id, top_k, use_rerank)
+        if history is None and cache_ttl > 0:
+            try:
+                cached = await cache_strategy.get(cache_key)
+                if cached is not None:
+                    logger.info("qa_cache_hit question=%s", question[:50])
+                    return cached
+            except Exception:
+                pass  # 缓存读取失败不影响正常流程
+
         query = await self._get_query(question)
-        return await qa_non_stream(
+        result = await qa_non_stream(
             question=query,
             llm_client=self._llm,
             retrieval_svc=self._retrieval,
@@ -89,6 +103,16 @@ class GenerationService(IGenerationService):
             pipeline=self._pipeline,
             guardrails=self._guardrails,
         )
+
+        # 写入缓存（仅无历史对话的单轮 QA）
+        if history is None and cache_ttl > 0:
+            try:
+                await cache_strategy.set(cache_key, result, ttl=cache_ttl)
+                logger.debug("qa_cache_set key=%s ttl=%d", cache_key, cache_ttl)
+            except Exception:
+                pass
+
+        return result
 
     async def qa_stream(
         self,

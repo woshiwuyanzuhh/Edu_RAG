@@ -130,6 +130,7 @@ class GenerationConfig(BaseSettings):
     enable_compression: bool = Field(default=False, description="LLM 语义压缩（需额外 LLM 调用）")
     enable_hyde: bool = Field(default=False, description="HyDE 假设文档嵌入（Phase 4）")
     enable_refuse: bool = Field(default=True, description="低置信度时拒绝编造")
+    qa_cache_ttl: int = Field(default=1800, ge=0, le=86400, description="QA 响应缓存 TTL（秒），0=禁用")
 
 
 class IngressConfig(BaseSettings):

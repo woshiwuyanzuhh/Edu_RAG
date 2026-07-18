@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-07-18 (夜) — 工程化优化轮（Docker/QA流式/LLM缓存）
+
+**范围**: 7 项工程化优化任务，已完成 4 项
+
+### Docker 镜像修复
+- **Dockerfile**: Python 3.10 → 3.12（与 requirements.txt 锁定的包版本对齐）
+- **torch CPU 版**: `--index-url https://download.pytorch.org/whl/cpu`，镜像体积减少 2GB+
+- **arq --no-deps**: arq 的 redis<6 约束与 redis==8 冲突，用 `--no-deps` 绕过
+- **requirements.txt**: 移除 arq 行（移到 Dockerfile 单独安装）
+
+### QA 流式输出优化
+- **打字机光标**: CSS `blink-cursor` 动画，流式输出时显示闪烁竖线
+- **停止按钮**: AbortController + fetch signal，用户可中断生成
+- **点点动画**: 检索中/思考中显示波浪点动画
+- **滚动节流**: requestAnimationFrame，避免每个 token 触发 scrollHeight 重排
+
+### LLM 响应缓存
+- **精确匹配缓存**: `GenerationService.qa()` 对无历史对话的单轮 QA 缓存
+- **缓存 key**: question + kb_id + top_k + use_rerank 的 MD5 哈希
+- **配置项**: `GENERATION__QA_CACHE_TTL`（默认 1800 秒，0=禁用）
+
+### 压测报告更新
+- 勾选已完成优化项（MySQL max_connections、限流配置化）
+
+---
+
 ## 2026-07-18 (晚) — 压力测试执行 + 优化项落地
 
 **范围**: L1/L2/L3 共 9 轮压测 + 3 项压测优化修复
