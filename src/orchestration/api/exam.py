@@ -4,7 +4,7 @@
 import generation 内部模块。
 """
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ from src.shared.models.schemas import (
 )
 from src.shared.exceptions import NotFoundError, ValidationError
 from src.orchestration.services import get_generation_service
-from src.orchestration.pagination import paginate, get_offset_limit
+from src.orchestration.pagination import paginate, get_offset_limit, paginated_select
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/exam", tags=["题库"])
@@ -127,27 +127,26 @@ async def grade_answers(req: ExamGradeRequest, db: AsyncSession = Depends(get_db
 @router.get("/records", response_model=APIResponse)
 async def list_exam_records(
     knowledge_base_id: int | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(ExamRecord)
-    count_query = select(func.count(ExamRecord.id))
-    if knowledge_base_id:
-        query = query.where(ExamRecord.knowledge_base_id == knowledge_base_id)
-        count_query = count_query.where(ExamRecord.knowledge_base_id == knowledge_base_id)
+    # P2-2: 使用 paginated_select 消除重复的分页查询模式
+    where = ExamRecord.knowledge_base_id == knowledge_base_id if knowledge_base_id else None
 
-    total = (await db.execute(count_query)).scalar() or 0
-    offset, limit = get_offset_limit(page, page_size)
-    result = await db.execute(query.order_by(ExamRecord.created_at.desc()).offset(offset).limit(limit))
-    records = result.scalars().all()
+    def _serialize(r: ExamRecord) -> dict:
+        return {"id": r.id, "knowledge_base_id": r.knowledge_base_id, "question_type": r.question_type,
+                "question_count": r.question_count, "difficulty": r.difficulty,
+                "total_score": r.total_score, "max_score": r.max_score,
+                "status": r.status, "created_at": r.created_at.isoformat() if r.created_at else None}
 
-    items = [{"id": r.id, "knowledge_base_id": r.knowledge_base_id, "question_type": r.question_type,
-              "question_count": r.question_count, "difficulty": r.difficulty,
-              "total_score": r.total_score, "max_score": r.max_score,
-              "status": r.status, "created_at": r.created_at.isoformat() if r.created_at else None}
-             for r in records]
-    return APIResponse(data=paginate(items, total, page, page_size).model_dump())
+    result = await paginated_select(
+        db, ExamRecord, page, page_size,
+        where=where,
+        order_by=ExamRecord.created_at.desc(),
+        serializer=_serialize,
+    )
+    return APIResponse(data=result.model_dump())
 
 
 @router.get("/records/{record_id}", response_model=APIResponse)

@@ -1,0 +1,20 @@
+# edu_rag MySQL 从库配置（P1-D5）
+# 部署：云上备机从库。docker-compose.cloud.yml 的 mysql_cloud 服务挂载此文件。
+# 作为本地主的只读从库，主库崩溃切换后承接读请求（写需切回主库或提升为主）。
+
+[mysqld]
+# 主从复制
+server-id=2
+relay-log=relay-bin
+read-only=1
+log-bin=mysql-bin
+binlog-format=ROW
+binlog_expire_logs_seconds=86400
+binlog_row_image=MINIMAL
+
+# 半同步复制（取消注释启用，需先 INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave.so'）
+# rpl_semi_sync_slave_enabled=1
+
+# 从库性能
+relay_log_recovery=1
+log_slave_updates=1

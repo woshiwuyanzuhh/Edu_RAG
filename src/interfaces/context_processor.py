@@ -2,13 +2,14 @@
 
 解决问题：原则 #3 — 所有增强必须是可插拔管线（Pluggable Pipeline），
 而非硬编码的 if-else 链。
+
+风格统一：与同包其他接口一致，使用 ABC + @abstractmethod。
 """
-from typing import Protocol, runtime_checkable
+from abc import ABC, abstractmethod
 
 
-@runtime_checkable
-class IContextProcessor(Protocol):
-    """上下文处理器协议 — 管线中的单个步骤。
+class IContextProcessor(ABC):
+    """上下文处理器抽象 — 管线中的单个步骤。
 
     每个步骤接收 chunks 列表和原始 query，返回处理后的 chunks 列表。
     步骤可以：过滤、压缩、重排、验证。
@@ -19,6 +20,7 @@ class IContextProcessor(Protocol):
         - 无副作用：不修改外部状态
     """
 
+    @abstractmethod
     async def process(self, chunks: list[dict], query: str) -> list[dict]:
         """处理 chunks 列表。
 

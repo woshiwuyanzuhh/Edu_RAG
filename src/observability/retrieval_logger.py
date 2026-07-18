@@ -23,7 +23,7 @@ class RetrievalLogger:
             self._log_dir = Path(__file__).resolve().parent.parent.parent / "data" / "retrieval_logs"
         self._log_dir.mkdir(parents=True, exist_ok=True)
 
-    def log(
+    async def log(
         self,
         query: str,
         chunks: list[dict],
@@ -31,7 +31,7 @@ class RetrievalLogger:
         session_id: str | None = None,
         feedback: dict | None = None,
     ) -> None:
-        """记录一条检索日志。
+        """记录一条检索日志（P2: aiofiles 异步写，避免阻塞事件循环）。
 
         Args:
             query: 用户问题
@@ -58,8 +58,10 @@ class RetrievalLogger:
         }
 
         try:
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            # P2: aiofiles 异步写，避免在 async QA 路径中阻塞事件循环
+            import aiofiles
+            async with aiofiles.open(log_file, "a", encoding="utf-8") as f:
+                await f.write(json.dumps(record, ensure_ascii=False) + "\n")
         except Exception as e:
             logger.warning(f"retrieval_log_write_failed error={e}")
 

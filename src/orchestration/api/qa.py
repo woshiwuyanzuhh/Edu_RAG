@@ -4,7 +4,7 @@
 import generation 内部模块。
 """
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ from src.shared.models.schemas import APIResponse, QARequest, FeedbackCreate
 from src.shared.exceptions import NotFoundError
 from src.orchestration.services import get_generation_service
 from src.orchestration.session import session_manager
-from src.orchestration.pagination import paginate, get_offset_limit
+from src.orchestration.pagination import paginate, get_offset_limit, paginated_select
 from src.observability.retrieval_logger import retrieval_logger
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ async def ask_question(req: QARequest, db: AsyncSession = Depends(get_db)):
 
     # Opt-8: 记录检索日志供离线评估
     try:
-        retrieval_logger.log(
+        await retrieval_logger.log(
             query=req.question,
             chunks=result.get("sources", []),
             answer=result.get("answer", ""),
@@ -124,21 +124,21 @@ async def submit_feedback(req: FeedbackCreate, db: AsyncSession = Depends(get_db
 
 @router.get("/feedback", response_model=APIResponse)
 async def list_feedback(
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    total = (await db.execute(select(func.count(Feedback.id)))).scalar() or 0
-    offset, limit = get_offset_limit(page, page_size)
-    result = await db.execute(
-        select(Feedback).order_by(Feedback.created_at.desc()).offset(offset).limit(limit)
-    )
-    items = [
-        {
+    # P2-2: 使用 paginated_select 消除重复的分页查询模式
+    def _serialize(f: Feedback) -> dict:
+        return {
             "id": f.id, "session_id": f.session_id, "question": f.question[:200],
             "answer": f.answer[:200], "rating": f.rating, "comment": f.comment,
             "created_at": f.created_at.isoformat() if f.created_at else None,
         }
-        for f in result.scalars().all()
-    ]
-    return APIResponse(data=paginate(items, total, page, page_size).model_dump())
+
+    result = await paginated_select(
+        db, Feedback, page, page_size,
+        order_by=Feedback.created_at.desc(),
+        serializer=_serialize,
+    )
+    return APIResponse(data=result.model_dump())

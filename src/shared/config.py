@@ -65,8 +65,10 @@ class MySQLConfig(BaseSettings):
     user: str = Field(default="root")
     password: SecretStr = Field(default=SecretStr(""))
     database: str = Field(default="edu_rag")
-    pool_size: int = Field(default=10, ge=1, le=50)
+    pool_size: int = Field(default=30, ge=1, le=100, description="连接池大小（P1-C7: 10→30 支撑高并发）")
+    max_overflow: int = Field(default=50, ge=0, le=100, description="连接池溢出上限（P1-C7 新增）")
     pool_recycle: int = Field(default=3600, ge=60)
+    pool_pre_ping: bool = Field(default=True, description="连接前 ping 检测活性，避免使用失效连接（P1-C7 新增）")
 
     @property
     def url(self) -> str:
@@ -108,6 +110,16 @@ class RedisConfig(BaseSettings):
         return kw
 
 
+class StorageConfig(BaseSettings):
+    """文件存储配置（P1-D2）。"""
+    provider: str = Field(default="local", pattern="^(local|object)$", description="local 或 object（S3 兼容）")
+    endpoint: str = Field(default="", description="对象存储 endpoint（留空用默认 S3）")
+    access_key: SecretStr = Field(default=SecretStr(""))
+    secret_key: SecretStr = Field(default=SecretStr(""))
+    bucket: str = Field(default="")
+    region: str = Field(default="")
+
+
 class RetrievalConfig(BaseSettings):
     """检索参数配置 — 可调节的检索管线参数。"""
     min_score: float = Field(default=0.3, ge=0.0, le=1.0, description="最低分数阈值")
@@ -139,6 +151,7 @@ class AppConfig(BaseSettings):
     upload_dir: str = Field(default="")
     max_upload_size_mb: int = Field(default=50, ge=1, le=500)
     debug: bool = Field(default=False)
+    async_ingestion: bool = Field(default=False, description="P1-C5: 文档入库走 ARQ 异步队列（生产 True，开发 False 同步）")
     api_key: SecretStr = Field(default=SecretStr(""), description="API 鉴权密钥（为空则跳过鉴权）")
     cors_origins: list[str] = Field(default=["http://localhost:5173"], description="CORS 允许的来源")
 
@@ -163,6 +176,7 @@ class Settings(BaseSettings):
     vector_store: VectorStoreConfig = Field(default_factory=VectorStoreConfig)
     mysql: MySQLConfig = Field(default_factory=MySQLConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
     retrieval: RetrievalConfig = Field(default_factory=RetrievalConfig)
     generation: GenerationConfig = Field(default_factory=GenerationConfig)
     ingress_cfg: IngressConfig = Field(default_factory=IngressConfig)

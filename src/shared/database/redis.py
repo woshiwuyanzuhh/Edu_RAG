@@ -5,7 +5,8 @@ Redis 缓存客户端 — 异步 Redis + JSON 便捷方法。
 """
 import json
 import logging
-from typing import Any
+import warnings
+from typing import Any, AsyncIterator
 
 import redis.asyncio as aioredis
 
@@ -94,13 +95,43 @@ class RedisClient:
             return False
 
     async def keys(self, pattern: str) -> list[str]:
-        """按模式查询键列表。"""
+        """按模式查询键列表。
+
+        .. deprecated::
+            KEYS 命令在生产环境会阻塞 Redis，请改用 scan()。
+        """
+        warnings.warn(
+            "RedisClient.keys() 使用 KEYS 命令，生产环境会阻塞 Redis。"
+            "请改用 scan() 方法（基于 SCAN，非阻塞）。",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if not self._redis:
             return []
         try:
             return await self._redis.keys(pattern)
         except Exception:
             return []
+
+    async def scan(self, pattern: str, count: int = 200) -> AsyncIterator[str]:
+        """按模式增量扫描键（推荐替代 keys()）。
+
+        使用 SCAN 命令，非阻塞，适合生产环境。
+
+        Args:
+            pattern: 匹配模式（如 "edu_rag:*:1:*"）
+            count: 每次迭代的批次大小（默认 200）
+
+        Yields:
+            匹配的键名
+        """
+        if not self._redis:
+            return
+        try:
+            async for key in self._redis.scan_iter(match=pattern, count=count):
+                yield key
+        except Exception:
+            return
 
 
 # 全局实例

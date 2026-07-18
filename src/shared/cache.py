@@ -109,6 +109,7 @@ class CacheStrategy:
     def __init__(self):
         self._l1: dict[str, tuple[Any, float]] = {}
         self._l1_ttl: float = 60.0  # L1 默认 60 秒
+        self._l1_maxsize: int = 1000  # P2: L1 最大条目数，防止长期运行内存膨胀
 
     async def get(self, key: str) -> Any | None:
         """先查 L1，再查 L2。"""
@@ -141,6 +142,12 @@ class CacheStrategy:
         _ttl = ttl or settings.redis.default_ttl
         self._l1[key] = (value, time.time() + min(self._l1_ttl, _ttl))
 
+        # P2: L1 LRU 淘汰 — 超过 maxsize 时清理最旧的条目，防止内存膨胀
+        if len(self._l1) > self._l1_maxsize:
+            sorted_keys = sorted(self._l1.keys(), key=lambda k: self._l1[k][1])
+            while len(self._l1) > self._l1_maxsize:
+                self._l1.pop(sorted_keys.pop(0), None)
+
         try:
             redis = _get_redis()
             await redis.set(key, json.dumps(value, ensure_ascii=False), ex=_ttl)
@@ -148,13 +155,17 @@ class CacheStrategy:
             pass
 
     async def invalidate(self, pattern: str) -> None:
-        """失效指定模式的缓存。"""
+        """失效指定模式的缓存（使用 SCAN 避免阻塞 Redis）。"""
         self._l1.clear()
         try:
             redis = _get_redis()
-            keys = await redis.keys(pattern)
-            if keys:
-                await redis.delete(*keys)
+            # P2-3: 使用 SCAN 迭代替代 KEYS，避免生产环境阻塞
+            deleted = 0
+            async for key in redis.scan_iter(match=pattern, count=200):
+                await redis.delete(key)
+                deleted += 1
+            if deleted:
+                logger.debug("cache_invalidated pattern=%s count=%d", pattern, deleted)
         except (RuntimeError, Exception):
             pass
 

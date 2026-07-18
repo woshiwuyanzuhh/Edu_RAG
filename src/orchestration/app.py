@@ -12,6 +12,7 @@ FastAPI 应用入口 — 四层 RAG 架构的编排中心。
 import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
+import asyncio
 
 # Windows UTF-8
 if sys.platform == "win32":
@@ -21,7 +22,7 @@ if sys.platform == "win32":
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse, FileResponse
 
@@ -37,8 +38,8 @@ from src.orchestration.middleware.rate_limit import RateLimitMiddleware
 
 logger = get_logger(__name__)
 
-# 最大请求体大小 (MB) — P2-8
-MAX_BODY_MB = 10
+# 最大请求体大小 (MB) — P1-7: 与 max_upload_size_mb 统一，避免上传 50MB 但 body 限制 10MB 的矛盾
+MAX_BODY_MB = settings.app.max_upload_size_mb
 
 
 # ======================== 生命周期 ========================
@@ -87,6 +88,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"vector_store_failed error={e} — 向量检索不可用")
 
+    # 5. BM25 索引加载（P0-C3: 从 MySQL 恢复，避免崩溃后混合检索静默失效）
+    try:
+        from src.retrieval.keyword import load_all_bm25_from_db
+        bm25_count = await load_all_bm25_from_db()
+        logger.info(f"bm25_restored count={bm25_count}")
+    except Exception as e:
+        logger.warning(f"bm25_load_failed error={e} — BM25 将在首次写入时重建")
+
     logger.info(f"edu_rag_started host={settings.app.host} port={settings.app.port}")
 
     yield
@@ -120,8 +129,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.app.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # P2-10: 收紧 CORS 方法与头，避免全放行
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-API-Key", "Authorization", "X-Request-ID"],
 )
 
 # ── 请求体大小限制 ──
@@ -157,19 +167,60 @@ app.include_router(exam_router)
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "edu_rag", "version": "2.0.0"}
+    """P0-C8: 探活依赖（MySQL+Redis+向量库），任一失败返回 503，供容灾 LB 健康检查。"""
+    checks = {"mysql": False, "redis": False, "vector_store": False}
+
+    # MySQL
+    try:
+        from src.shared.database.mysql import _session_factory
+        from sqlalchemy import text as _sql_text
+        if _session_factory is not None:
+            async with _session_factory() as session:
+                await session.execute(_sql_text("SELECT 1"))
+            checks["mysql"] = True
+    except Exception:
+        pass
+
+    # Redis
+    try:
+        if redis_client.is_connected:
+            await redis_client.client.ping()
+            checks["redis"] = True
+    except Exception:
+        pass
+
+    # 向量库（ChromaDB/Milvus 通用：count() 可达即健康，3s 超时保护）
+    try:
+        vs = get_vector_store()
+        await asyncio.wait_for(vs.count(), timeout=3.0)
+        checks["vector_store"] = True
+    except Exception:
+        pass
+
+    all_ok = all(checks.values())
+    return ORJSONResponse(
+        status_code=200 if all_ok else 503,
+        content={
+            "status": "ok" if all_ok else "degraded",
+            "service": "edu_rag",
+            "version": "2.0.0",
+            "checks": checks,
+        },
+    )
 
 
 # ── Prometheus 指标（P2-2）──
 
 def _setup_prometheus():
-    """尝试注册 Prometheus 指标端点（可选依赖）。"""
+    """尝试注册 Prometheus 指标端点（可选依赖）。P2-C10: 含业务指标。"""
     try:
         from prometheus_fastapi_instrumentator import Instrumentator
+        # P2-C10: 注册业务指标（Counter/Histogram/Gauge 定义即注册到全局 REGISTRY）
+        from src.orchestration.middleware import metrics  # noqa: F401
         instrumentator = Instrumentator()
         instrumentator.instrument(app)
         instrumentator.expose(app, endpoint="/metrics", include_in_schema=False)
-        logger.info("prometheus_metrics_enabled endpoint=/metrics")
+        logger.info("prometheus_metrics_enabled endpoint=/metrics (含业务指标)")
     except ImportError:
         logger.info("prometheus_fastapi_instrumentator 未安装，/metrics 不可用")
 
@@ -194,6 +245,15 @@ if FRONTEND_DIST.exists():
             from fastapi.responses import JSONResponse
             return JSONResponse(status_code=404, content={"success": False, "message": "Not Found"})
         file_path = FRONTEND_DIST / full_path if full_path else FRONTEND_DIST / "index.html"
+        # P2-8: 路径遍历校验 — resolve() 后断言仍在 FRONTEND_DIST 内
+        try:
+            resolved = file_path.resolve()
+            if not str(resolved).startswith(str(FRONTEND_DIST.resolve())):
+                from fastapi.responses import JSONResponse
+                return JSONResponse(status_code=404, content={"success": False, "message": "Not Found"})
+        except Exception:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=404, content={"success": False, "message": "Not Found"})
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
         return FileResponse(FRONTEND_DIST / "index.html")

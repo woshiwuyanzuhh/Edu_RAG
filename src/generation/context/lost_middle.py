@@ -7,11 +7,13 @@
 """
 import logging
 
+from src.interfaces.context_processor import IContextProcessor
+
 logger = logging.getLogger(__name__)
 
 
-class LostInMiddleReorder:
-    """"Lost in the Middle" 重排器 — 实现 IContextProcessor 协议。"""
+class LostInMiddleReorder(IContextProcessor):
+    """"Lost in the Middle" 重排器 — 实现 IContextProcessor 接口。"""
 
     async def process(self, chunks: list[dict], query: str) -> list[dict]:
         """对 chunks 重新排序，不增删内容。"""

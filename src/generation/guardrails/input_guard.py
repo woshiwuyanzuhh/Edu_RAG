@@ -26,8 +26,8 @@ INJECTION_PATTERNS = [
 ]
 
 
-class InputGuard:
-    """Prompt Injection 检测器 — 实现 IGuardrail 协议。"""
+class InputGuard(IGuardrail):
+    """Prompt Injection 检测器 — 实现 IGuardrail 接口。"""
 
     @property
     def is_blocking(self) -> bool:

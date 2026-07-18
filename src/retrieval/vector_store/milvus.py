@@ -38,6 +38,7 @@ class MilvusStore(IVectorStore):
             )
         self._collection: Any = None
         self._connected = False
+        self._dirty = False  # P2: 延迟 flush 标志，避免每次 insert 都 flush
 
     async def connect(self) -> None:
         """连接 Milvus 并创建/加载 Collection。"""
@@ -98,14 +99,22 @@ class MilvusStore(IVectorStore):
             data[5].append(item.metadata.get("chunk_index", 0))
 
         await asyncio.to_thread(self._collection.insert, data)
+        # 立即 flush — 跨进程场景（worker 写 / app 读）必须 flush 才能被 search/count 可见
+        # 延迟 flush 仅对同进程批量有效，跨进程会导致 app 进程读不到 worker 写入的数据
         await asyncio.to_thread(self._collection.flush)
-        logger.debug(f"milvus_insert count={len(items)}")
+        self._dirty = False
+        logger.debug(f"milvus_insert_flushed count={len(items)}")
 
     async def search(
         self, query: list[float], top_k: int = 5, filter_expr: dict | None = None,
     ) -> list[SearchResult]:
         if not self._collection:
             return []
+
+        # P2: 搜索前 flush 待写入数据，确保新插入的数据可搜索
+        if self._dirty:
+            await asyncio.to_thread(self._collection.flush)
+            self._dirty = False
 
         expr = self._build_expr(filter_expr)
         search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
@@ -155,7 +164,11 @@ class MilvusStore(IVectorStore):
     async def count(self) -> int:
         if not self._collection:
             return 0
-        return await asyncio.to_thread(self._collection.num_entities)
+        # P2: 计数前 flush，确保数据持久化
+        if self._dirty:
+            await asyncio.to_thread(self._collection.flush)
+            self._dirty = False
+        return self._collection.num_entities
 
     @staticmethod
     def _build_expr(filter_expr: dict | None) -> str | None:

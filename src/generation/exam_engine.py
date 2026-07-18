@@ -6,9 +6,8 @@
 架构原则 #4: 所有检索操作通过 IRetrievalService 接口调用。
 
 变更 (Opt-13): 接入 ContextPipeline — 考试上下文也走管线增强。
+P2-2: 抽取 _prepare_exam_context 消除 generate_exam / generate_exam_stream 重复；JSON 解析改用 shared.json_utils。
 """
-import json
-import re
 import logging
 from typing import AsyncGenerator, TYPE_CHECKING
 
@@ -16,6 +15,7 @@ from src.interfaces.llm import ILLMClient, Message
 from src.interfaces.retrieval_service import IRetrievalService
 from src.generation.prompts.exam_generate import EXAM_GENERATE_PROMPT
 from src.generation.prompts.exam_grade import GRADE_PROMPT
+from src.shared.json_utils import parse_llm_json
 
 if TYPE_CHECKING:
     from src.generation.context.pipeline import ContextPipeline
@@ -30,16 +30,18 @@ TYPE_NAMES = {
 }
 
 
-async def generate_exam(
+async def _prepare_exam_context(
     knowledge_base_id: int,
-    llm_client: ILLMClient,
     retrieval_svc: IRetrievalService,
-    question_type: str = "mixed",
-    question_count: int = 5,
-    difficulty: str = "medium",
-    pipeline: "ContextPipeline | None" = None,
-) -> list[dict]:
-    """生成考试题目。"""
+    question_type: str,
+    question_count: int,
+    difficulty: str,
+    pipeline: "ContextPipeline | None",
+) -> str:
+    """P2-2: 抽取出题共通的检索 + 管线增强 + prompt 构造。
+
+    被 generate_exam 和 generate_exam_stream 共用，消除重复的 pipeline 增强 + prompt 构造逻辑。
+    """
     # 1. 多角度检索
     context = await retrieval_svc.build_context_for_exam(knowledge_base_id)
 
@@ -64,6 +66,23 @@ async def generate_exam(
         question_count=question_count,
         difficulty=difficulty,
     )
+    return prompt
+
+
+async def generate_exam(
+    knowledge_base_id: int,
+    llm_client: ILLMClient,
+    retrieval_svc: IRetrievalService,
+    question_type: str = "mixed",
+    question_count: int = 5,
+    difficulty: str = "medium",
+    pipeline: "ContextPipeline | None" = None,
+) -> list[dict]:
+    """生成考试题目。"""
+    # P2-2: 使用抽取的 _prepare_exam_context
+    prompt = await _prepare_exam_context(
+        knowledge_base_id, retrieval_svc, question_type, question_count, difficulty, pipeline,
+    )
 
     # 3. 调用 LLM
     response = await llm_client.chat(
@@ -75,8 +94,8 @@ async def generate_exam(
         max_tokens=4096,
     )
 
-    # 4. 解析 JSON
-    return _parse_json_response(response, "题目")
+    # 4. 解析 JSON（P2-2: 改用 shared.json_utils）
+    return parse_llm_json(response, "题目")
 
 
 async def generate_exam_stream(
@@ -89,25 +108,9 @@ async def generate_exam_stream(
     pipeline: "ContextPipeline | None" = None,
 ) -> AsyncGenerator[str, None]:
     """流式出题。"""
-    context = await retrieval_svc.build_context_for_exam(knowledge_base_id)
-
-    # Opt-13: 管线增强
-    if pipeline:
-        hits = await retrieval_svc.retrieve(
-            query=f"{question_type} {difficulty} 考试题目",
-            knowledge_base_id=knowledge_base_id,
-            top_k=10, use_rerank=False,
-        )
-        if hits:
-            chunks = [{"text": h.text, "score": h.score, "metadata": h.metadata or {}} for h in hits]
-            enhanced = await pipeline.process(chunks, f"{difficulty}难度{question_type}")
-            from src.generation.qa_engine import _chunks_to_context
-            context = _chunks_to_context(enhanced)
-
-    type_name = TYPE_NAMES.get(question_type, "选择题")
-    prompt = EXAM_GENERATE_PROMPT.format(
-        context=context, question_type=type_name,
-        question_count=question_count, difficulty=difficulty,
+    # P2-2: 使用抽取的 _prepare_exam_context
+    prompt = await _prepare_exam_context(
+        knowledge_base_id, retrieval_svc, question_type, question_count, difficulty, pipeline,
     )
 
     async for token in llm_client.chat_stream(
@@ -147,7 +150,6 @@ async def grade_exam(
     context = result["context"]
 
     # 2. 构造答案文本
-
     reference_parts = []
     for q in questions:
         ref = f"第{q['number']}题 ({q.get('type', 'essay')})\n题干: {q['stem']}"
@@ -178,8 +180,8 @@ async def grade_exam(
         max_tokens=2048,
     )
 
-    # 4. 解析
-    result = _parse_json_response(response, "批改结果")
+    # 4. 解析（P2-2: 改用 shared.json_utils）
+    result = parse_llm_json(response, "批改结果")
     if isinstance(result, list):
         details = result
         dimensions = None
@@ -202,21 +204,6 @@ async def grade_exam(
 
 
 # ── 工具函数 ──
-
-def _parse_json_response(response: str, label: str) -> list | dict:
-    """鲁棒 JSON 解析：去 markdown 包裹 → 正则兜底。"""
-    response = response.strip()
-    # 鲁棒去除 code fence（支持有无换行）
-    response = re.sub(r'^```(?:json)?\s*\n?', '', response)
-    response = re.sub(r'\n?\s*```\s*$', '', response)
-    try:
-        return json.loads(response)
-    except json.JSONDecodeError:
-        match = re.search(r"(\[.*\]|\{.*\})", response, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        raise ValueError(f"LLM 生成的{label}无法解析为 JSON: {response[:500]}")
-
 
 def _score_summary(total_score: float) -> str:
     """分数段位总结。"""

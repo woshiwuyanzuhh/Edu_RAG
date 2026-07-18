@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 CITATION_PATTERN = re.compile(r"\[(\d+)\]")
 
 
-class OutputGuard:
-    """LLM 输出安全过滤器 + 引用验证器 — 实现 IGuardrail 协议。"""
+class OutputGuard(IGuardrail):
+    """LLM 输出安全过滤器 + 引用验证器 — 实现 IGuardrail 接口。"""
 
     @property
     def is_blocking(self) -> bool:

@@ -65,7 +65,7 @@ class GenerationService(IGenerationService):
     async def _get_query(self, question: str) -> str:
         """可选 HyDE 扩展 — 根据 Feature Flag 决定。"""
         if settings.generation.enable_hyde:
-            from src.orchestration.query_preprocessor import hyde_expand
+            from src.generation.hyde import hyde_expand
             return await hyde_expand(question, self._llm)
         return question
 

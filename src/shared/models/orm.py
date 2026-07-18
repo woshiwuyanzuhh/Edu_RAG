@@ -99,3 +99,16 @@ class Feedback(Base):
     rating = Column(Integer, nullable=False, comment="1=👍 赞, 0=👎 踩")
     comment = Column(Text, nullable=True, comment="可选文字评论")
     created_at = Column(DateTime, server_default=func.now())
+
+
+class BM25IndexCache(Base):
+    """BM25 索引持久化缓存 — 支持多实例共享与崩溃恢复（P0-C3）。
+
+    knowledge_base_id=0 表示 legacy 全局索引（内存中 None 的序列化形式）。
+    仅持久化 docs + metadatas，_tokenized 与 _bm25 对象启动时重建。
+    """
+    __tablename__ = "bm25_index_cache"
+    knowledge_base_id = Column(Integer, primary_key=True, comment="知识库 ID；0 表示 legacy 全局索引")
+    docs = Column(JSON, nullable=False, default=lambda: [], comment="文档文本列表")
+    metadatas = Column(JSON, nullable=False, default=lambda: [], comment="元数据列表")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

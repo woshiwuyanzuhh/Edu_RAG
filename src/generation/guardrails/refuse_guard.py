@@ -9,8 +9,8 @@ from src.interfaces.guardrail import IGuardrail, GuardResult
 logger = logging.getLogger(__name__)
 
 
-class RefuseGuard:
-    """拒答决策器 — 实现 IGuardrail 协议。"""
+class RefuseGuard(IGuardrail):
+    """拒答决策器 — 实现 IGuardrail 接口。"""
 
     def __init__(self, min_score: float | None = None):
         self._min_score = min_score if min_score is not None else settings.retrieval.min_score

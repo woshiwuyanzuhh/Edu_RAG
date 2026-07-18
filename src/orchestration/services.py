@@ -34,7 +34,7 @@ def get_generation_service() -> IGenerationService:
     global _generation_svc, _retrieval_svc
     if _generation_svc is None:
         from src.generation import GenerationService
-        from src.generation.llm import OpenAICompatClient
+        from src.providers.llm import OpenAICompatClient
         _retrieval_svc = get_retrieval_service()
         _generation_svc = GenerationService(
             llm_client=OpenAICompatClient(),
@@ -50,7 +50,7 @@ def get_retrieval_service() -> IRetrievalService:
         from src.retrieval.service import RetrievalService
         from src.retrieval.embedder import get_embedder
         from src.retrieval.vector_store import get_vector_store
-        from src.generation.llm import OpenAICompatClient
+        from src.providers.llm import OpenAICompatClient
         _retrieval_svc = RetrievalService(
             embedder=get_embedder(),
             vector_store=get_vector_store(),

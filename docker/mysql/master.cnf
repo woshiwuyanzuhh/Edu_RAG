@@ -1,0 +1,32 @@
+# edu_rag MySQL 主库配置（P1-D5）
+# 部署：本地机房主库。docker-compose.yml 的 mysql 服务挂载此文件。
+# 挂载方式：volumes 下加 - ./mysql/master.cnf:/etc/mysql/conf.d/master.cnf:ro
+#
+# 主从复制设置步骤（本地主 → 云从）：
+#   1. 主库创建复制账号：
+#      CREATE USER 'repl'@'%' IDENTIFIED BY '<强密码>';
+#      GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';
+#   2. 主库锁表 + 记录 binlog 位置：FLUSH TABLES WITH READ LOCK; SHOW MASTER STATUS;
+#   3. 主库导出数据：mysqldump --single-transaction edu_rag > dump.sql
+#   4. 从库导入：mysql edu_rag < dump.sql
+#   5. 从库执行：CHANGE MASTER TO MASTER_HOST='<主库IP>', MASTER_USER='repl',
+#      MASTER_PASSWORD='<密码>', MASTER_LOG_FILE='<file>', MASTER_LOG_POS=<pos>;
+#      START REPLICA;
+#   6. 半同步（可选，降低 RPO）：主从均 INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master.so';
+#      从库 INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave.so';
+
+[mysqld]
+# 主从复制
+server-id=1
+log-bin=mysql-bin
+binlog-format=ROW
+binlog_expire_logs_seconds=86400
+binlog_row_image=MINIMAL
+
+# 半同步复制（取消注释启用，需先 INSTALL PLUGIN）
+# rpl_semi_sync_master_enabled=1
+# rpl_semi_sync_master_timeout=3000
+
+# 性能
+innodb_flush_log_at_trx_commit=1
+sync_binlog=1

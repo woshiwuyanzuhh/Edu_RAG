@@ -1,7 +1,15 @@
-"""Generation Layer — 生成。独立部署单元，负责基于上下文生成回答/考题。
+"""Generation layer public exports.
 
-对外唯一入口: GenerationService (IGenerationService 门面)
+The service facade is loaded lazily so utility submodules can be imported
+without initializing configuration or provider dependencies.
 """
-from src.generation.service import GenerationService
 
 __all__ = ["GenerationService"]
+
+
+def __getattr__(name: str):
+    if name == "GenerationService":
+        from src.generation.service import GenerationService
+
+        return GenerationService
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

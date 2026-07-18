@@ -1,6 +1,6 @@
 """知识库 API — CRUD + 分页。"""
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,7 @@ from src.shared.models.schemas import (
     APIResponse, KnowledgeBaseCreate, KnowledgeBaseUpdate,
 )
 from src.shared.exceptions import NotFoundError
-from src.orchestration.pagination import paginate, get_offset_limit
+from src.orchestration.pagination import paginate, get_offset_limit, paginated_select
 from src.retrieval.vector_store import get_vector_store
 
 logger = logging.getLogger(__name__)
@@ -28,23 +28,23 @@ async def create_kb(req: KnowledgeBaseCreate, db: AsyncSession = Depends(get_db)
 
 @router.get("", response_model=APIResponse)
 async def list_kb(
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    # 总数
-    total = (await db.execute(select(func.count(KnowledgeBase.id)))).scalar() or 0
-    offset, limit = get_offset_limit(page, page_size)
-    result = await db.execute(
-        select(KnowledgeBase).order_by(KnowledgeBase.updated_at.desc()).offset(offset).limit(limit)
-    )
-    kbs = result.scalars().all()
+    # P2-2: 使用 paginated_select 消除重复的分页查询模式
+    def _serialize(k: KnowledgeBase) -> dict:
+        return {"id": k.id, "name": k.name, "description": k.description,
+                "retrieval_config": k.retrieval_config,
+                "created_at": k.created_at.isoformat() if k.created_at else None,
+                "updated_at": k.updated_at.isoformat() if k.updated_at else None}
 
-    items = [{"id": k.id, "name": k.name, "description": k.description,
-              "retrieval_config": k.retrieval_config,
-              "created_at": k.created_at.isoformat() if k.created_at else None,
-              "updated_at": k.updated_at.isoformat() if k.updated_at else None} for k in kbs]
-    return APIResponse(data=paginate(items, total, page, page_size).model_dump())
+    result = await paginated_select(
+        db, KnowledgeBase, page, page_size,
+        order_by=KnowledgeBase.updated_at.desc(),
+        serializer=_serialize,
+    )
+    return APIResponse(data=result.model_dump())
 
 
 @router.get("/{kb_id}", response_model=APIResponse)
@@ -90,12 +90,13 @@ async def delete_kb(kb_id: int, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.warning(f"vector_delete_failed kb_id={kb_id} error={e}")
 
-    # 删除物理文件
+    # 删除物理文件 — P2: asyncio.to_thread 避免阻塞事件循环
     import os
+    import asyncio
     docs_result = await db.execute(select(Document).where(Document.knowledge_base_id == kb_id))
     for doc in docs_result.scalars():
         if os.path.exists(doc.file_path):
-            os.remove(doc.file_path)
+            await asyncio.to_thread(os.remove, doc.file_path)
 
     await db.delete(kb)
     await db.commit()

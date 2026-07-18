@@ -63,7 +63,17 @@ export interface SourceItem {
   text_preview: string
 }
 
-// === Exam ===
+export interface FeedbackRequest {
+  question: string
+  answer: string
+  rating: 'like' | 'dislike'
+  comment?: string
+  sources?: SourceItem[]
+}
+
+export interface FeedbackResponse {
+  id: number
+}
 export interface ExamGenerateRequest {
   knowledge_base_id: number
   question_type: 'choice' | 'essay' | 'tf' | 'mixed'

@@ -12,10 +12,8 @@ from src.interfaces.embedder import IEmbedder
 from src.interfaces.vector_store import IVectorStore, VectorItem
 from src.ingress.pipeline import run_ingestion, IngestionResult as PipelineResult
 from src.ingress.parsers import PARSER_REGISTRY
-from src.ingress.cleaners import CLEANER_REGISTRY
-from src.ingress.chunkers import RecursiveChunker
 from src.shared.exceptions import UnsupportedFileType, EmptyDocumentError
-from src.retrieval.keyword import build_bm25 as build_shared_bm25
+from src.retrieval.keyword import build_bm25 as build_shared_bm25, delete_bm25_documents
 from src.shared.cache import cache_strategy
 
 logger = logging.getLogger(__name__)
@@ -77,7 +75,21 @@ class IngestionService(IIngestionService):
 
         # 4. 构建 BM25 索引
         try:
-            build_shared_bm25(chunk_texts)
+            build_shared_bm25(
+                chunk_texts,
+                knowledge_base_id=kb_id,
+                metadatas=[
+                    {
+                        "doc_id": doc_id,
+                        "chunk_index": c.chunk_index,
+                        "knowledge_base_id": kb_id,
+                        "source_file": c.source_file,
+                        "doc_type": doc_type,
+                    }
+                    for c in pipeline_result.chunks
+                ],
+                append=True,
+            )
             logger.info(f"bm25_built kb_id={kb_id} doc_id={doc_id} chunks={len(chunk_texts)}")
         except Exception as e:
             logger.warning(f"bm25_build_failed error={e}")
@@ -109,9 +121,10 @@ class IngestionService(IIngestionService):
             # ChromaDB 可能不支持 delete_by_filter，fallback 到 ID 范围删除
             logger.warning(f"vector_delete_by_filter_failed doc_id={doc_id} error={e} — trying delete_by_ids")
             try:
-                # 分 10 批，每批 1000 个，覆盖最多 10000 chunks
-                for batch_start in range(0, 10000, 1000):
-                    ids = [f"{doc_id}_{i}" for i in range(batch_start, batch_start + 1000)]
+                # P2: 减小盲删范围 — 一个文档通常不超过 2000 chunks
+                # 分 4 批每批 500，减少不必要的删除操作（原为 10000/1000）
+                for batch_start in range(0, 2000, 500):
+                    ids = [f"{doc_id}_{i}" for i in range(batch_start, batch_start + 500)]
                     await self._vector_store.delete_by_ids(ids)
             except Exception as e2:
                 logger.warning(f"vector_delete_final_failed doc_id={doc_id} error={e2}")
@@ -119,6 +132,9 @@ class IngestionService(IIngestionService):
         # 删除物理文件
         if os.path.exists(file_path):
             os.remove(file_path)
+
+        removed = delete_bm25_documents(knowledge_base_id=kb_id, doc_id=doc_id)
+        logger.info(f"bm25_deleted kb_id={kb_id} doc_id={doc_id} chunks={removed}")
 
         # 失效缓存
         await cache_strategy.invalidate(f"edu_rag:*:{kb_id}:*")

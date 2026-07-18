@@ -4,13 +4,12 @@
 解决问题 #10: 截断策略改进 — 取首尾各 150 字符，不丢失尾部信息。
 解决问题 #11: 分数融合 — final = α × LLM_score + (1-α) × vector_score。
 """
-import json
-import re
 import logging
 
 from src.shared.config import settings
 from src.interfaces.vector_store import SearchResult
 from src.interfaces.llm import ILLMClient, Message
+from src.shared.json_utils import try_parse_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -103,23 +102,10 @@ async def llm_rerank(
         logger.warning(f"rerank_llm_failed error={e}")
         return candidates[:top_k]
 
-    # 解析 LLM 输出（鲁棒去除 code fence）
-    try:
-        response = response.strip()
-        response = re.sub(r'^```(?:json)?\s*\n?', '', response)
-        response = re.sub(r'\n?\s*```\s*$', '', response)
-        rankings = json.loads(response)
-    except json.JSONDecodeError:
-        match = re.search(r"\[.*\]", response, re.DOTALL)
-        if match:
-            try:
-                rankings = json.loads(match.group())
-            except json.JSONDecodeError:
-                logger.warning(f"rerank_parse_failed response={response[:200]}")
-                return candidates[:top_k]
-        else:
-            logger.warning(f"rerank_parse_failed response={response[:200]}")
-            return candidates[:top_k]
+    # P2-2: 使用 shared.json_utils 解析（容错模式，失败时降级返回原始排序）
+    rankings = try_parse_llm_json(response, default=None)
+    if rankings is None:
+        return candidates[:top_k]
 
     # 分数融合（解决问题 #11）
     id_to_candidate: dict[int, SearchResult] = {i + 1: c for i, c in enumerate(candidates)}

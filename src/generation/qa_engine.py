@@ -3,6 +3,7 @@
 架构原则 #4: 所有检索操作通过 IRetrievalService 接口调用。
 
 变更 (Phase 2 P1-5): 新增可选 ContextPipeline 参数，支持可插拔上下文增强步骤链。
+P2-2: 抽取 _prepare_qa_context 消除 qa_non_stream / qa_stream 重复逻辑；合并 _build_sources。
 """
 import json
 import logging
@@ -29,9 +30,9 @@ def _hits_to_chunks(hits: list[SearchResult]) -> list[dict]:
 
 
 def _chunks_to_context(chunks: list[dict], max_chunks: int | None = None) -> str:
+    """chunk dict 列表 → 格式化上下文字符串。"""
     if max_chunks is None:
         max_chunks = settings.retrieval.max_chunks
-    """chunk dict 列表 → 格式化上下文字符串。"""
     if not chunks:
         return ""
     parts = []
@@ -39,6 +40,82 @@ def _chunks_to_context(chunks: list[dict], max_chunks: int | None = None) -> str
         source = c.get("metadata", {}).get("source_file", "?")
         parts.append(f"【片段{i + 1}】(来源: {source})\n{c['text']}")
     return "\n\n---\n\n".join(parts)
+
+
+def _build_sources(items: list[SearchResult] | list[dict]) -> list[dict]:
+    """P2-2: 统一构建来源引用列表 — 同时支持 SearchResult 和 chunk dict。"""
+    result = []
+    for item in items:
+        if isinstance(item, SearchResult):
+            metadata = item.metadata or {}
+            text = item.text
+            score = item.score
+        else:  # chunk dict
+            metadata = item.get("metadata", {})
+            text = item.get("text", "")
+            score = item.get("score", 0)
+        result.append({
+            "doc_id": metadata.get("doc_id", "?"),
+            "chunk_index": metadata.get("chunk_index", 0),
+            "score": round(score, 2),
+            "text_preview": text[:200],
+        })
+    return result
+
+
+async def _prepare_qa_context(
+    question: str,
+    retrieval_svc: IRetrievalService,
+    knowledge_base_id: int | None,
+    top_k: int,
+    use_rerank: bool,
+    pipeline: "ContextPipeline | None",
+    guardrails: "GuardrailChain | None",
+) -> tuple[str, list[dict], str | None]:
+    """P2-2: 抽取 QA 共通的检索 + 管线增强 + guardrail 逻辑。
+
+    Returns:
+        (context, sources, block_reason)
+        - block_reason 非 None: 被 guardrail 拦截，context/sources 为空
+        - context 为空且 block_reason 为 None: 无检索结果，调用方处理空回答
+        - 否则: 正常返回 context + sources
+    """
+    # Opt-7: Input guard — 检查 prompt injection
+    if guardrails:
+        gr = await guardrails.check_input(question)
+        if gr.action == "block":
+            return "", [], gr.reason
+
+    if pipeline is not None:
+        hits = await retrieval_svc.retrieve(
+            query=question, knowledge_base_id=knowledge_base_id,
+            top_k=top_k, use_rerank=use_rerank,
+        )
+        if not hits:
+            return "", [], None
+
+        chunks = _hits_to_chunks(hits)
+
+        # Opt-7: Refuse guard — 低置信度拒答
+        if guardrails:
+            gr = await guardrails.check_input("", {"chunks": chunks})
+            if gr.action == "block":
+                return "", [], gr.reason
+
+        enhanced = await pipeline.process(chunks, question)
+        context = _chunks_to_context(enhanced)
+        sources = _build_sources(enhanced)
+    else:
+        result = await retrieval_svc.retrieve_with_context(
+            query=question, knowledge_base_id=knowledge_base_id,
+            top_k=top_k, use_rerank=use_rerank,
+        )
+        hits, context = result["hits"], result["context"]
+        if not hits:
+            return "", [], None
+        sources = _build_sources(hits)
+
+    return context, sources, None
 
 
 async def qa_non_stream(
@@ -53,40 +130,15 @@ async def qa_non_stream(
     guardrails: "GuardrailChain | None" = None,
 ) -> dict:
     """非流式 RAG 问答。"""
-    # Opt-7: Input guard — 检查 prompt injection
-    if guardrails:
-        gr = await guardrails.check_input(question)
-        if gr.action == "block":
-            return {"question": question, "answer": gr.reason, "sources": []}
+    # P2-2: 使用抽取的 _prepare_qa_context 消除重复
+    context, sources, block_reason = await _prepare_qa_context(
+        question, retrieval_svc, knowledge_base_id, top_k, use_rerank, pipeline, guardrails,
+    )
 
-    if pipeline is not None:
-        hits = await retrieval_svc.retrieve(
-            query=question, knowledge_base_id=knowledge_base_id,
-            top_k=top_k, use_rerank=use_rerank,
-        )
-        if not hits:
-            return {"question": question, "answer": "当前知识库中暂无相关内容，建议上传相关资料后再提问。", "sources": []}
-
-        chunks = _hits_to_chunks(hits)
-
-        # Opt-7: Refuse guard — 低置信度拒答
-        if guardrails:
-            gr = await guardrails.check_input("", {"chunks": chunks})
-            if gr.action == "block":
-                return {"question": question, "answer": gr.reason, "sources": []}
-
-        enhanced = await pipeline.process(chunks, question)
-        context = _chunks_to_context(enhanced)
-        sources = _build_sources_from_chunks(enhanced)
-    else:
-        result = await retrieval_svc.retrieve_with_context(
-            query=question, knowledge_base_id=knowledge_base_id,
-            top_k=top_k, use_rerank=use_rerank,
-        )
-        hits, context = result["hits"], result["context"]
-        if not hits:
-            return {"question": question, "answer": "当前知识库中暂无相关内容，建议上传相关资料后再提问。", "sources": []}
-        sources = _build_sources(hits)
+    if block_reason:
+        return {"question": question, "answer": block_reason, "sources": []}
+    if not context:
+        return {"question": question, "answer": "当前知识库中暂无相关内容，建议上传相关资料后再提问。", "sources": []}
 
     messages = _build_messages(context=context, question=question, history=history)
     answer = await llm_client.chat(messages=messages, temperature=0.3)
@@ -112,48 +164,19 @@ async def qa_stream(
     guardrails: "GuardrailChain | None" = None,
 ) -> AsyncGenerator[str, None]:
     """流式 RAG 问答 — 返回 SSE 事件流。"""
-    # Opt-7: Input guard
-    if guardrails:
-        gr = await guardrails.check_input(question)
-        if gr.action == "block":
-            yield f"data: {gr.reason}\n\n"
-            yield "data: [DONE]\n\n"
-            return
+    # P2-2: 使用抽取的 _prepare_qa_context 消除重复
+    context, sources, block_reason = await _prepare_qa_context(
+        question, retrieval_svc, knowledge_base_id, top_k, use_rerank, pipeline, guardrails,
+    )
 
-    if pipeline is not None:
-        hits = await retrieval_svc.retrieve(
-            query=question, knowledge_base_id=knowledge_base_id,
-            top_k=top_k, use_rerank=use_rerank,
-        )
-        if not hits:
-            yield "data: 当前知识库中暂无相关内容，建议上传相关资料后再提问。\n\n"
-            yield "data: [DONE]\n\n"
-            return
-
-        chunks = _hits_to_chunks(hits)
-
-        # Opt-7: Refuse guard
-        if guardrails:
-            gr = await guardrails.check_input("", {"chunks": chunks})
-            if gr.action == "block":
-                yield f"data: {gr.reason}\n\n"
-                yield "data: [DONE]\n\n"
-                return
-
-        enhanced = await pipeline.process(chunks, question)
-        context = _chunks_to_context(enhanced)
-        sources = _build_sources_from_chunks(enhanced)
-    else:
-        result = await retrieval_svc.retrieve_with_context(
-            query=question, knowledge_base_id=knowledge_base_id,
-            top_k=top_k, use_rerank=use_rerank,
-        )
-        hits, context = result["hits"], result["context"]
-        if not hits:
-            yield "data: 当前知识库中暂无相关内容，建议上传相关资料后再提问。\n\n"
-            yield "data: [DONE]\n\n"
-            return
-        sources = _build_sources(hits)
+    if block_reason:
+        yield f"data: {block_reason}\n\n"
+        yield "data: [DONE]\n\n"
+        return
+    if not context:
+        yield "data: 当前知识库中暂无相关内容，建议上传相关资料后再提问。\n\n"
+        yield "data: [DONE]\n\n"
+        return
 
     messages = _build_messages(context=context, question=question, history=history)
 
@@ -182,29 +205,3 @@ def _build_messages(
     prompt = f"## 知识库内容\n{context}\n\n## 用户问题\n{question}"
     messages.append(Message(role="user", content=prompt))
     return messages
-
-
-def _build_sources(hits: list[SearchResult]) -> list[dict]:
-    """构建来源引用列表。"""
-    return [
-        {
-            "doc_id": h.metadata.get("doc_id", "?"),
-            "chunk_index": h.metadata.get("chunk_index", 0),
-            "score": round(h.score, 2),
-            "text_preview": h.text[:200],
-        }
-        for h in hits
-    ]
-
-
-def _build_sources_from_chunks(chunks: list[dict]) -> list[dict]:
-    """从 chunk dict 构建来源引用列表。"""
-    return [
-        {
-            "doc_id": c.get("metadata", {}).get("doc_id", "?"),
-            "chunk_index": c.get("metadata", {}).get("chunk_index", 0),
-            "score": round(c.get("score", 0), 2),
-            "text_preview": c.get("text", "")[:200],
-        }
-        for c in chunks
-    ]

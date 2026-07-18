@@ -42,7 +42,7 @@ class RetrievalService(IRetrievalService):
         self._embedder = embedder
         self._vector_store = vector_store
         self._llm_client = llm_client
-        # expander 在需要时惰性创建；BM25 索引通过全局单例共享（由 ingestion 构建）
+        # expander 在需要时惰性创建；BM25 索引按知识库共享（由 ingestion 构建）
         self._expander: IQueryExpander | None = None
 
     def _get_expander(self) -> IQueryExpander | None:
@@ -92,21 +92,27 @@ class RetrievalService(IRetrievalService):
             span.metadata["vec_hit_count"] = len(vec_hits)
 
         # 2. 混合检索：BM25 关键词召回 + RRF 融合
-        if hybrid and self._hybrid_ready():
+        if hybrid and self._hybrid_ready(knowledge_base_id):
             async with tracer.span("keyword") as span:
-                bm25 = get_bm25()
+                bm25 = get_bm25(knowledge_base_id)
                 kw_results = await asyncio.to_thread(
                     bm25.search, query, top_k=max(top_k * 2, 10)
                 )
+                max_score = max((score for _, score in kw_results), default=1.0) or 1.0
                 # 映射 BM25 结果到 SearchResult
-                kw_hits = [
-                    SearchResult(
-                        id=f"kw_{idx}", text=bm25._docs[idx],
-                        score=score / max(s for _, s in kw_results) if kw_results else 0,
-                        metadata={"source": "bm25", "doc_index": idx},
+                kw_hits = []
+                for idx, score in kw_results:
+                    metadata = bm25.get_metadata(idx)
+                    doc_id = metadata.get("doc_id", "unknown")
+                    chunk_index = metadata.get("chunk_index", idx)
+                    kw_hits.append(
+                        SearchResult(
+                            id=f"{doc_id}_{chunk_index}",
+                            text=bm25.get_document(idx),
+                            score=score / max_score,
+                            metadata={**metadata, "source": "bm25", "doc_index": idx},
+                        )
                     )
-                    for idx, score in kw_results
-                ]
                 span.metadata["kw_hit_count"] = len(kw_hits)
             vec_hits = self._rrf_fuse(vec_hits, kw_hits)
 
@@ -128,9 +134,9 @@ class RetrievalService(IRetrievalService):
         tracer.log_report()
         return vec_hits
 
-    def _hybrid_ready(self) -> bool:
+    def _hybrid_ready(self, knowledge_base_id: int | None = None) -> bool:
         """检查 BM25 索引是否已构建。"""
-        bm25 = get_bm25()
+        bm25 = get_bm25(knowledge_base_id)
         return bm25 is not None and bm25.doc_count > 0
 
     @staticmethod

@@ -63,22 +63,29 @@ class SessionManager:
         return None
 
     async def append_message(self, session_key: str, role: str, content: str, db: AsyncSession) -> None:
-        """向会话追加一条消息。"""
+        """P2: 向会话追加消息（增量更新，避免 select + 全量覆盖）。"""
+        import json
+        from sqlalchemy import text as sql_text
+
+        new_msg = {"role": role, "content": content}
+
+        # 更新 Redis（增量追加）
         session_data = await self.get_session(session_key, db)
         if not session_data:
             return
-
-        session_data["messages"].append({"role": role, "content": content})
-
-        # 更新 Redis
+        session_data["messages"].append(new_msg)
         await self._redis.set_json(f"session:{session_key}", session_data, ttl=SESSION_TTL)
 
-        # 更新 MySQL
-        result = await db.execute(select(ChatSession).where(ChatSession.session_key == session_key))
-        session = result.scalar_one_or_none()
-        if session:
-            session.messages = session_data["messages"]
-            await db.commit()
+        # P2: MySQL 增量更新 — JSON_ARRAY_APPEND 替代 select + 全量覆盖
+        # 避免每次追加都 select 整个会话再全量写回，直接用 SQL 追加单条消息
+        table = ChatSession.__tablename__
+        await db.execute(
+            sql_text(
+                f"UPDATE `{table}` SET messages = JSON_ARRAY_APPEND(IFNULL(messages, '[]'), '$', CAST(:msg AS JSON)) WHERE session_key = :key"
+            ),
+            {"msg": json.dumps(new_msg, ensure_ascii=False), "key": session_key},
+        )
+        await db.commit()
 
     async def get_history(self, session_key: str, db: AsyncSession) -> list[dict]:
         """获取会话的对话历史。"""

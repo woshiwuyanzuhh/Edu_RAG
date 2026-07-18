@@ -25,7 +25,9 @@ async def init_mysql() -> None:
     _engine = create_async_engine(
         settings.mysql.url,
         pool_size=settings.mysql.pool_size,
+        max_overflow=settings.mysql.max_overflow,
         pool_recycle=settings.mysql.pool_recycle,
+        pool_pre_ping=settings.mysql.pool_pre_ping,
         echo=False,
     )
 
