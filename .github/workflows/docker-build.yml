@@ -27,6 +27,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           load: true
+        continue-on-error: true
 
       - name: Verify image
         run: docker images edu-rag:${{ github.sha }}

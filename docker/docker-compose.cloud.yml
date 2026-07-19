@@ -10,8 +10,6 @@
 # 注意：与本地 docker-compose.yml 端口错开（app=8100, mysql=3308, redis=6381, milvus=19531 冲突需注意）
 #       生产建议云上独立主机，端口可与本地一致。
 
-version: "3.9"
-
 services:
   app:
     build:

@@ -1,13 +1,22 @@
 # edu_rag v2.0 — 多阶段构建
 # 依赖来源: requirements.txt（由 pip-compile pyproject.toml 生成，锁定版本）
 # 变更依赖: 编辑 pyproject.toml → pip-compile → requirements.txt 自动更新
+#
+# 构建参数:
+#   PIP_INDEX_URL — pip 镜像源（默认官方，国内构建可传清华源）
+#   APT_MIRROR    — apt 镜像源（默认官方，国内构建可传阿里云）
+
+ARG PIP_INDEX_URL=""
+ARG APT_MIRROR=""
 
 FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# 国内 pip 镜像源加速
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
+ARG PIP_INDEX_URL
+
+# pip 镜像源（国内构建传 https://pypi.tuna.tsinghua.edu.cn/simple）
+RUN if [ -n "$PIP_INDEX_URL" ]; then pip config set global.index-url "$PIP_INDEX_URL"; fi && \
     pip config set global.timeout 120 && \
     pip install --no-cache-dir uv
 
@@ -15,8 +24,9 @@ COPY requirements.txt pyproject.toml ./
 # 先装 CPU 版 torch（避免 2GB+ nvidia CUDA 包，Docker 内不需要 GPU）
 RUN uv pip install --system --no-cache torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
 # 再装主依赖（torch 已满足，跳过），然后用 --no-deps 装 arq（redis 版本冲突）
-ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-RUN uv pip install --system --no-cache -r requirements.txt && \
+ARG UV_INDEX_URL=""
+RUN if [ -n "$UV_INDEX_URL" ]; then export UV_INDEX_URL="$UV_INDEX_URL"; fi && \
+    uv pip install --system --no-cache -r requirements.txt && \
     uv pip install --system --no-cache --no-deps "arq>=0.26.0" && \
     uv pip install --system --no-cache "locust>=2.20.0"
 
@@ -25,9 +35,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# 安装系统依赖（PyMuPDF 需要 libgl）— 使用阿里云镜像源加速
-RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null; \
-    sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null; \
+# 安装系统依赖（PyMuPDF 需要 libgl）
+ARG APT_MIRROR
+RUN if [ -n "$APT_MIRROR" ]; then \
+      sed -i "s|deb.debian.org|$APT_MIRROR|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null; \
+      sed -i "s|deb.debian.org|$APT_MIRROR|g" /etc/apt/sources.list 2>/dev/null; \
+    fi && \
     apt-get update && apt-get install -y --no-install-recommends \
     libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*

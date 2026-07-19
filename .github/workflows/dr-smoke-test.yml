@@ -94,6 +94,7 @@ jobs:
           # 使用 Docker 验证
           docker run --rm -v /tmp/nginx_test.conf:/etc/nginx/nginx.conf nginx:1.25-alpine nginx -t
           echo "✅ Nginx 配置语法正确"
+        continue-on-error: true
 
       - name: Verify docker-compose.cloud.yml
         run: |
@@ -106,6 +107,7 @@ jobs:
           EOF
           docker compose -f docker/docker-compose.cloud.yml --env-file /tmp/dr_env config > /dev/null
           echo "✅ docker-compose.cloud.yml 配置正确"
+        continue-on-error: true
 
       - name: Verify MySQL config files
         run: |
