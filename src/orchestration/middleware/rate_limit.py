@@ -7,6 +7,7 @@ API 端点差异化限制：
 """
 import time
 import logging
+import uuid
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -68,8 +69,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     content={"success": False, "message": f"请求过于频繁，请 {window} 秒后重试", "data": None},
                 )
 
-            # 记录本次请求
-            await redis_client.client.zadd(rate_key, {str(now): now})
+            # 记录本次请求 — member 用 uuid 保证唯一，避免同毫秒同 IP 重复请求覆盖
+            await redis_client.client.zadd(rate_key, {str(uuid.uuid4()): now})
             await redis_client.client.expire(rate_key, window + 10)
 
         except Exception as e:

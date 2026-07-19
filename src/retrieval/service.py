@@ -56,13 +56,11 @@ class RetrievalService(IRetrievalService):
 
         应在文档上传成功后调用，确保 BM25 索引与向量库同步。
         """
-        import logging
-        log = logging.getLogger(__name__)
         idx = build_bm25_index(documents)
         if idx is not None:
-            log.info(f"bm25_built doc_count={idx.doc_count}")
+            logger.info(f"bm25_built doc_count={idx.doc_count}")
         else:
-            log.warning("bm25_build_skipped — rank_bm25 未安装")
+            logger.warning("bm25_build_skipped — rank_bm25 未安装")
 
     # ── IRetrievalService 实现 ──
 
