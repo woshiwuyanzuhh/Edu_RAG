@@ -899,7 +899,7 @@ def evaluate_rag(question, answer, contexts, ground_truth=None) -> dict:
 ### 启动命令
 
 ```bash
-cd C:\Users\lenovo\Desktop\ml_dl_nlp\edu_rag
+cd D:\edu_rag
 python src/orchestration/app.py
 # 浏览器: http://localhost:8000
 ```

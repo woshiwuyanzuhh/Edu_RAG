@@ -45,7 +45,7 @@
 #### A1. 配置 frp 客户端
 
 ```bash
-cd C:\Users\lenovo\Desktop\ml_dl_nlp\edu_rag
+cd D:\edu_rag
 
 # 生成 frp token 并配置两端文件
 bash scripts/setup_frp.sh
@@ -94,7 +94,7 @@ ssh root@116.62.121.27
 **方式1: 从本地 SCP 上传**（在本地 PowerShell 执行）
 
 ```powershell
-scp -r C:\Users\lenovo\Desktop\ml_dl_nlp\edu_rag root@116.62.121.27:/opt/edu_rag
+scp -r D:\edu_rag root@116.62.121.27:/opt/edu_rag
 ```
 
 **方式2: 从 GitHub 克隆**（如果有仓库）

@@ -21,7 +21,7 @@ observability/ ← Tracer / RAGAS / Prometheus Metrics
 ## 快速启动
 
 ```bash
-cd C:\Users\lenovo\Desktop\ml_dl_nlp\edu_rag
+cd D:\edu_rag
 python src/orchestration/app.py    # 后端 → http://localhost:8000
 cd frontend && npm run dev         # 前端 → http://localhost:5173
 ```
@@ -79,7 +79,7 @@ locust -f tests/load/locustfile.py --headless -u 100 -r 10 --run-time 5m --host 
 
 ## 记忆文件
 
-路径: `C:\Users\lenovo\.claude\projects\C--Users-lenovo-Desktop-ml-dl-nlp-edu-rag\memory\`
+路径: `C:\Users\lenovo\.claude\projects\D--edu_rag\memory\`
 
 | 文件 | 内容 |
 |------|------|
