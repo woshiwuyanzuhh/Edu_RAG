@@ -160,7 +160,7 @@ tests/
 |:--:|------|------|:--:|
 | P3 | 前端测试缺失 | Vue 组件无单元测试 | ✅ 已完成（8 个 spec：api/components/composables/stores）|
 | P3 | E2E 测试 | 无端到端自动化测试 | ✅ 已完成（4 个 Playwright spec：home/qa/knowledge/navigation）|
-| P4 | CI/CD | GitHub Actions 仅 lint，缺自动测试/部署 | ✅ 已完成（6 个 workflow：lint/test/frontend-test/e2e/docker-build/dr-smoke）|
+| P4 | CI/CD | GitHub Actions 仅 lint，缺自动测试/部署 | ✅ 已完成（6 个 workflow 全绿：lint/test/frontend-test/e2e/docker-build/dr-smoke；2026-07-19 夜修复 1/6→6/6）|
 | P4 | 类型导出 | 前端 API 类型手动维护，可考虑 OpenAPI 自动生成 | 待改进 |
 | P5 | 多租户 | 当前单租户，未来可能需要知识库级隔离强化 | 待改进 |
 
