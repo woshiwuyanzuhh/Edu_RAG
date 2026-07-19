@@ -4,10 +4,11 @@
     全链路追踪（Query → 检索结果 → 拼接上下文 → 生成输出）
     和量化评估（RAGAS、人工标注）是前提。
 """
-import time
-import uuid
+
 import contextvars
 import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ def get_request_id() -> str:
 
 
 # ── 链路追踪 ──
+
 
 class TraceSpan:
     """单个追踪 Span — 记录一个阶段的耗时和元数据。"""
@@ -102,11 +104,14 @@ class Tracer:
 
     def log_report(self) -> None:
         report_data = self.report()
-        logger.info(f"trace_report trace_id={report_data['trace_id']} request_id={report_data['request_id']} "
-                    f"query={report_data['query']} total_ms={report_data['total_ms']} spans={len(report_data['spans'])}")
+        logger.info(
+            f"trace_report trace_id={report_data['trace_id']} request_id={report_data['request_id']} "
+            f"query={report_data['query']} total_ms={report_data['total_ms']} spans={len(report_data['spans'])}"
+        )
 
 
 # ── RAGAS 评估指标 ──
+
 
 def compute_retrieval_precision(
     retrieved_ids: list[str],
@@ -152,8 +157,8 @@ def evaluate_rag(
         {"faithfulness": float, "context_relevancy": float, "answer_correctness": float | None}
         所有值在 [0, 1] 之间。
     """
-    from ragas.metrics import Faithfulness, ContextRelevancy, AnswerCorrectness
     from ragas import SingleTurnSample
+    from ragas.metrics import AnswerCorrectness, ContextRelevancy, Faithfulness
 
     metrics: dict = {}
     sample = SingleTurnSample(

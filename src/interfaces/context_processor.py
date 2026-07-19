@@ -5,6 +5,7 @@
 
 风格统一：与同包其他接口一致，使用 ABC + @abstractmethod。
 """
+
 from abc import ABC, abstractmethod
 
 

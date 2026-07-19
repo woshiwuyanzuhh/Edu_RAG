@@ -7,6 +7,7 @@
     新代码请直接 from src.generation.hyde import hyde_expand。
     本模块保留仅为向后兼容，依赖方向：Orchestration(上) → Generation(下) 合法。
 """
-from src.generation.hyde import hyde_expand, HYDE_PROMPT
+
+from src.generation.hyde import HYDE_PROMPT, hyde_expand
 
 __all__ = ["hyde_expand", "HYDE_PROMPT"]

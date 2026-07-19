@@ -5,6 +5,7 @@ SSE 流式端点（/api/qa/stream, /api/exam/generate/stream）豁免超时，
 
 非流式请求超过 request_timeout 秒后返回 504 Gateway Timeout。
 """
+
 import asyncio
 import logging
 
@@ -17,10 +18,12 @@ from src.shared.config import settings
 logger = logging.getLogger(__name__)
 
 # SSE 流式端点豁免超时
-_STREAM_PATHS = frozenset({
-    "/api/qa/stream",
-    "/api/exam/generate/stream",
-})
+_STREAM_PATHS = frozenset(
+    {
+        "/api/qa/stream",
+        "/api/exam/generate/stream",
+    }
+)
 
 
 class TimeoutMiddleware(BaseHTTPMiddleware):
@@ -41,8 +44,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
             return await asyncio.wait_for(call_next(request), timeout=timeout)
         except asyncio.TimeoutError:
             logger.warning(
-                f"request_timeout path={path} timeout={timeout}s "
-                f"request_id={request.headers.get('X-Request-ID', '-')}"
+                f"request_timeout path={path} timeout={timeout}s request_id={request.headers.get('X-Request-ID', '-')}"
             )
             return ORJSONResponse(
                 status_code=504,

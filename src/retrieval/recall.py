@@ -6,13 +6,14 @@
 
 解决问题 #15: 所有 query 一次性发送给 embedder.embed()，而非逐个调用。
 """
+
 import asyncio
 import logging
 
-from src.shared.config import settings
 from src.interfaces.embedder import IEmbedder
-from src.interfaces.vector_store import IVectorStore, SearchResult
 from src.interfaces.query_expander import IQueryExpander
+from src.interfaces.vector_store import IVectorStore, SearchResult
+from src.shared.config import settings
 
 logger = logging.getLogger(__name__)
 

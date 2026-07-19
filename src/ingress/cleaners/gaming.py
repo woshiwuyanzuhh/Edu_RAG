@@ -1,5 +1,7 @@
 """游戏攻略清洗器 — 过滤论坛签名/广告/纯emoji行。"""
+
 import re
+
 from src.ingress.cleaners.base import BaseCleaner
 
 

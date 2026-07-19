@@ -4,11 +4,13 @@
 
 P2-7 优化: 使用 asyncio.gather 并发压缩多块，Semaphore 限流避免 LLM 限速。
 """
+
 import asyncio
 import logging
-from src.interfaces.llm import ILLMClient, Message
-from src.interfaces.context_processor import IContextProcessor
+
 from src.generation.prompts.compress import COMPRESS_PROMPT
+from src.interfaces.context_processor import IContextProcessor
+from src.interfaces.llm import ILLMClient, Message
 
 logger = logging.getLogger(__name__)
 

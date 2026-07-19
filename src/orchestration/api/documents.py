@@ -3,25 +3,25 @@
 变更 (Phase 1 P0-5): 通过 IIngestionService 门面调用，不再直接
 import ingress/retrieval 内部模块。
 """
+
 import logging
 import os
 import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, Query
-from sqlalchemy import select, func
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.orchestration.jobs.ingestion import delete_document_resources, process_document_ingestion
+from src.orchestration.middleware.metrics import DOCUMENT_PROCESSED
+from src.orchestration.pagination import paginated_select
 from src.shared.config import settings
 from src.shared.constants import DOCUMENT_TYPES, is_valid_doc_type
 from src.shared.database.mysql import get_db
+from src.shared.exceptions import FileTooLarge, NotFoundError, UnsupportedFileType, ValidationError
 from src.shared.models.orm import Document, KnowledgeBase
 from src.shared.models.schemas import APIResponse
-from src.shared.exceptions import NotFoundError, UnsupportedFileType, FileTooLarge, ValidationError
-from src.orchestration.pagination import paginate, get_offset_limit, paginated_select
-from src.orchestration.jobs.ingestion import delete_document_resources, process_document_ingestion
-from src.orchestration.middleware.metrics import DOCUMENT_PROCESSED
 
 router = APIRouter(prefix="/api/documents", tags=["文档"])
 
@@ -76,6 +76,7 @@ async def upload_document(
 
     # 3. 分块读取 + 写盘 + 大小校验（P2-4: aiofiles 分块写盘，避免全量读入内存）
     import aiofiles
+
     max_bytes = settings.app.max_upload_size_mb * 1024 * 1024
     upload_dir = settings.app.get_upload_dir()
     os.makedirs(upload_dir, exist_ok=True)
@@ -106,6 +107,7 @@ async def upload_document(
 
     # P1-D2: 存储抽象 — 本地无变化，对象存储上传后 file_path 改为 s3:// URI
     from src.shared.storage import get_storage
+
     storage_key = await get_storage().save(file_path, safe_name)
 
     # 5. 创建记录
@@ -124,8 +126,11 @@ async def upload_document(
     # 6. 写入管线 — P1-C5: 异步队列投递（生产）或同步处理（开发/兜底）
     if settings.app.async_ingestion:
         from src.orchestration.worker.client import enqueue_ingestion
+
         if await enqueue_ingestion(
-            doc_id=doc.id, kb_id=knowledge_base_id, doc_type=doc_type,
+            doc_id=doc.id,
+            kb_id=knowledge_base_id,
+            doc_type=doc_type,
         ):
             return APIResponse(
                 message="文档已上传，正在后台处理",
@@ -158,12 +163,22 @@ async def list_documents(
     where = Document.knowledge_base_id == knowledge_base_id if knowledge_base_id else None
 
     def _serialize(d: Document) -> dict:
-        return {"id": d.id, "filename": d.filename, "file_type": d.file_type, "file_size": d.file_size,
-                "knowledge_base_id": d.knowledge_base_id, "chunk_count": d.chunk_count,
-                "status": d.status, "created_at": d.created_at.isoformat() if d.created_at else None}
+        return {
+            "id": d.id,
+            "filename": d.filename,
+            "file_type": d.file_type,
+            "file_size": d.file_size,
+            "knowledge_base_id": d.knowledge_base_id,
+            "chunk_count": d.chunk_count,
+            "status": d.status,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        }
 
     result = await paginated_select(
-        db, Document, page, page_size,
+        db,
+        Document,
+        page,
+        page_size,
         where=where,
         order_by=Document.created_at.desc(),
         serializer=_serialize,
@@ -188,6 +203,7 @@ async def delete_document(doc_id: int, db: AsyncSession = Depends(get_db)):
     # P1-D2: 删除存储文件（本地/对象存储统一）
     # 注：对象存储部署时，ingestion service 的文件删除需适配 s3:// URI（当前 LocalStorage 兼容）
     from src.shared.storage import get_storage
+
     await get_storage().delete(doc.file_path)
 
     # 通过 orchestration job 删除向量 + 物理文件

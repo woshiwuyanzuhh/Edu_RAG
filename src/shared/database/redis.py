@@ -3,10 +3,12 @@ Redis 缓存客户端 — 异步 Redis + JSON 便捷方法。
 
 解决问题 #1: 这是新架构中实际被使用的 Redis 客户端。
 """
+
 import json
 import logging
 import warnings
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import redis.asyncio as aioredis
 
@@ -101,8 +103,7 @@ class RedisClient:
             KEYS 命令在生产环境会阻塞 Redis，请改用 scan()。
         """
         warnings.warn(
-            "RedisClient.keys() 使用 KEYS 命令，生产环境会阻塞 Redis。"
-            "请改用 scan() 方法（基于 SCAN，非阻塞）。",
+            "RedisClient.keys() 使用 KEYS 命令，生产环境会阻塞 Redis。请改用 scan() 方法（基于 SCAN，非阻塞）。",
             DeprecationWarning,
             stacklevel=2,
         )

@@ -3,6 +3,7 @@
 适用场景：新闻报道、资讯文章、媒体稿件。
 保留：新闻正文、引用、时间地点信息。
 """
+
 import re
 
 from src.ingress.cleaners.base import BaseCleaner
@@ -13,19 +14,26 @@ class NewsCleaner(BaseCleaner):
 
     def clean(self, text: str) -> str:
         text = super().clean(text)
-        return self._filter_lines(text, [
-            self._is_copyright_notice,
-            self._is_reporter_byline,
-            self._is_editor_info,
-            self._is_source_line,
-        ])
+        return self._filter_lines(
+            text,
+            [
+                self._is_copyright_notice,
+                self._is_reporter_byline,
+                self._is_editor_info,
+                self._is_source_line,
+            ],
+        )
 
     @staticmethod
     def _is_copyright_notice(line: str) -> bool:
         """版权声明行。"""
         keywords = [
-            "版权所有", "未经授权", "不得转载", "违者必究",
-            "转自", "摘自",
+            "版权所有",
+            "未经授权",
+            "不得转载",
+            "违者必究",
+            "转自",
+            "摘自",
         ]
         # 来源行：支持中英文冒号，且要求在行首附近出现
         is_source = bool(re.match(r"^.{0,6}来源\s*[:：]", line))

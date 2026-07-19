@@ -1,4 +1,5 @@
 """查询扩展器抽象。"""
+
 from abc import ABC, abstractmethod
 
 

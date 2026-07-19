@@ -6,16 +6,18 @@ Pydantic 请求/响应模型。
     - ExamGradeResponse 新增 dimensions (解决问题 #24)
     - 新增 PaginatedResponse 泛型 (解决问题 #8)
 """
+
 from datetime import datetime
 from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field
 
-
 # ── 通用 ──
+
 
 class APIResponse(BaseModel):
     """统一 API 响应包装。"""
+
     success: bool = True
     message: str = ""
     data: Any = None
@@ -26,6 +28,7 @@ T = TypeVar("T")
 
 class PaginatedResponse(BaseModel, Generic[T]):
     """统一分页响应。解决问题 #8。"""
+
     items: list[T] = Field(default_factory=list)
     total: int = 0
     page: int = 1
@@ -34,6 +37,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
 
 
 # ── 知识库 ──
+
 
 class KnowledgeBaseCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="知识库名称")
@@ -60,6 +64,7 @@ class KnowledgeBaseResponse(BaseModel):
 
 # ── 文档 ──
 
+
 class DocumentResponse(BaseModel):
     id: int
     filename: str
@@ -74,6 +79,7 @@ class DocumentResponse(BaseModel):
 
 
 # ── 问答 ──
+
 
 class QARequest(BaseModel):
     question: str = Field(..., min_length=1, description="用户问题")
@@ -99,6 +105,7 @@ class QAResponse(BaseModel):
 
 
 # ── 考试 ──
+
 
 class ExamGenerateRequest(BaseModel):
     knowledge_base_id: int
@@ -138,6 +145,7 @@ class GradeDetail(BaseModel):
 
 class DimensionScore(BaseModel):
     """维度评分 — 解决问题 #24。"""
+
     concept: float = Field(default=0, ge=0, le=25, description="概念理解 (0-25)")
     analysis: float = Field(default=0, ge=0, le=25, description="分析能力 (0-25)")
     memory: float = Field(default=0, ge=0, le=25, description="记忆准确性 (0-25)")
@@ -166,6 +174,7 @@ class ExamRecordItem(BaseModel):
 
 
 # ── 用户反馈 (Phase 4 P3-4) ──
+
 
 class FeedbackCreate(BaseModel):
     session_id: str | None = None

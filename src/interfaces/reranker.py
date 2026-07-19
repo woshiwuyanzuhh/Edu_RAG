@@ -1,5 +1,7 @@
 """重排序器抽象。"""
+
 from abc import ABC, abstractmethod
+
 from src.interfaces.vector_store import SearchResult
 
 

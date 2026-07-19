@@ -3,6 +3,7 @@
 适用场景：券商研报、财报、理财产品说明、财经资讯。
 保留：财务数据、分析结论、指标。
 """
+
 import re
 
 from src.ingress.cleaners.base import BaseCleaner
@@ -13,19 +14,27 @@ class FinanceCleaner(BaseCleaner):
 
     def clean(self, text: str) -> str:
         text = super().clean(text)
-        return self._filter_lines(text, [
-            self._is_risk_disclaimer,
-            self._is_stock_code_spam,
-            self._is_disclaimer_short,
-        ])
+        return self._filter_lines(
+            text,
+            [
+                self._is_risk_disclaimer,
+                self._is_stock_code_spam,
+                self._is_disclaimer_short,
+            ],
+        )
 
     @staticmethod
     def _is_risk_disclaimer(line: str) -> bool:
         """风险提示/免责声明行。"""
         keywords = [
-            "风险提示", "投资有风险", "入市需谨慎",
-            "免责声明", "不构成投资建议", "仅供参考，不构成",
-            "据此操作，风险自担", "请谨慎决策",
+            "风险提示",
+            "投资有风险",
+            "入市需谨慎",
+            "免责声明",
+            "不构成投资建议",
+            "仅供参考，不构成",
+            "据此操作，风险自担",
+            "请谨慎决策",
         ]
         return any(kw in line for kw in keywords)
 
@@ -50,7 +59,9 @@ class FinanceCleaner(BaseCleaner):
             return False
         # 完整短语匹配，避免正则元字符 ? 把每个汉字都变成可选
         keywords = [
-            "本报告仅供参考", "本报告供参考",
-            "分析师承诺", "评级标准",
+            "本报告仅供参考",
+            "本报告供参考",
+            "分析师承诺",
+            "评级标准",
         ]
         return any(kw in line for kw in keywords)

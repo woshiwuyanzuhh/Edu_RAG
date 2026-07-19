@@ -18,37 +18,45 @@
     3. 实现清洗器类（继承 BaseCleaner）
     4. 在前端 UploadPage.vue / upload.html 添加下拉选项（如需）
 """
+
 from src.ingress.cleaners.base import BaseCleaner
-from src.ingress.cleaners.education import EducationCleaner
-from src.ingress.cleaners.gaming import GamingCleaner
-from src.ingress.cleaners.tech import TechCleaner
-from src.ingress.cleaners.medical import MedicalCleaner
-from src.ingress.cleaners.legal import LegalCleaner
-from src.ingress.cleaners.finance import FinanceCleaner
-from src.ingress.cleaners.news import NewsCleaner
-from src.ingress.cleaners.literature import LiteratureCleaner
 from src.ingress.cleaners.business import BusinessCleaner
+from src.ingress.cleaners.education import EducationCleaner
+from src.ingress.cleaners.finance import FinanceCleaner
+from src.ingress.cleaners.gaming import GamingCleaner
+from src.ingress.cleaners.legal import LegalCleaner
+from src.ingress.cleaners.literature import LiteratureCleaner
+from src.ingress.cleaners.medical import MedicalCleaner
+from src.ingress.cleaners.news import NewsCleaner
+from src.ingress.cleaners.tech import TechCleaner
 from src.interfaces.cleaner import ICleaner
 from src.shared.constants import DocumentType
 
 # 清洗器注册表: doc_type → ICleaner
 # 顺序与 DOCUMENT_TYPES 保持一致
 CLEANER_REGISTRY: dict[str, ICleaner] = {
-    DocumentType.GENERAL:    BaseCleaner(),
-    DocumentType.EDUCATION:  EducationCleaner(),
-    DocumentType.GAMING:     GamingCleaner(),
-    DocumentType.TECH:       TechCleaner(),
-    DocumentType.MEDICAL:    MedicalCleaner(),
-    DocumentType.LEGAL:      LegalCleaner(),
-    DocumentType.FINANCE:    FinanceCleaner(),
-    DocumentType.NEWS:       NewsCleaner(),
+    DocumentType.GENERAL: BaseCleaner(),
+    DocumentType.EDUCATION: EducationCleaner(),
+    DocumentType.GAMING: GamingCleaner(),
+    DocumentType.TECH: TechCleaner(),
+    DocumentType.MEDICAL: MedicalCleaner(),
+    DocumentType.LEGAL: LegalCleaner(),
+    DocumentType.FINANCE: FinanceCleaner(),
+    DocumentType.NEWS: NewsCleaner(),
     DocumentType.LITERATURE: LiteratureCleaner(),
-    DocumentType.BUSINESS:   BusinessCleaner(),
+    DocumentType.BUSINESS: BusinessCleaner(),
 }
 
 __all__ = [
-    "BaseCleaner", "EducationCleaner", "GamingCleaner",
-    "TechCleaner", "MedicalCleaner", "LegalCleaner",
-    "FinanceCleaner", "NewsCleaner", "LiteratureCleaner", "BusinessCleaner",
+    "BaseCleaner",
+    "EducationCleaner",
+    "GamingCleaner",
+    "TechCleaner",
+    "MedicalCleaner",
+    "LegalCleaner",
+    "FinanceCleaner",
+    "NewsCleaner",
+    "LiteratureCleaner",
+    "BusinessCleaner",
     "CLEANER_REGISTRY",
 ]

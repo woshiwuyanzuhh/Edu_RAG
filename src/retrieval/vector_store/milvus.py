@@ -6,11 +6,12 @@
     pip install pymilvus>=2.4
     Milvus 服务运行中 (docker compose up milvus-standalone)
 """
+
 import asyncio
 import logging
 from typing import Any
 
-from src.interfaces.vector_store import IVectorStore, VectorItem, SearchResult
+from src.interfaces.vector_store import IVectorStore, SearchResult, VectorItem
 from src.shared.config import settings
 
 logger = logging.getLogger(__name__)
@@ -21,8 +22,14 @@ DIM = 1024  # bge-m3 维度
 # 延迟导入避免强制依赖
 try:
     from pymilvus import (
-        connections, Collection, FieldSchema, CollectionSchema, DataType, utility,
+        Collection,
+        CollectionSchema,
+        DataType,
+        FieldSchema,
+        connections,
+        utility,
     )
+
     _HAS_PYMILVUS = True
 except ImportError:
     _HAS_PYMILVUS = False
@@ -33,9 +40,7 @@ class MilvusStore(IVectorStore):
 
     def __init__(self):
         if not _HAS_PYMILVUS:
-            raise ImportError(
-                "pymilvus 未安装。请执行: pip install pymilvus>=2.4"
-            )
+            raise ImportError("pymilvus 未安装。请执行: pip install pymilvus>=2.4")
         self._collection: Any = None
         self._connected = False
         self._dirty = False  # P2: 延迟 flush 标志，避免每次 insert 都 flush
@@ -56,8 +61,10 @@ class MilvusStore(IVectorStore):
 
         await asyncio.to_thread(self._collection.load)
         self._connected = True
-        logger.info(f"milvus_connected host={settings.vector_store.milvus_host} "
-                     f"port={settings.vector_store.milvus_port} count={await self.count()}")
+        logger.info(
+            f"milvus_connected host={settings.vector_store.milvus_host} "
+            f"port={settings.vector_store.milvus_port} count={await self.count()}"
+        )
 
     async def _create_collection(self) -> Any:
         schema = CollectionSchema(
@@ -106,7 +113,10 @@ class MilvusStore(IVectorStore):
         logger.debug(f"milvus_insert_flushed count={len(items)}")
 
     async def search(
-        self, query: list[float], top_k: int = 5, filter_expr: dict | None = None,
+        self,
+        query: list[float],
+        top_k: int = 5,
+        filter_expr: dict | None = None,
     ) -> list[SearchResult]:
         if not self._collection:
             return []
@@ -136,22 +146,24 @@ class MilvusStore(IVectorStore):
         hits = []
         if results:
             for hit in results[0]:
-                hits.append(SearchResult(
-                    id=str(hit.id),
-                    text=hit.entity.get("text", ""),
-                    score=round(hit.distance, 4),
-                    metadata={
-                        "doc_id": hit.entity.get("doc_id", 0),
-                        "chunk_index": hit.entity.get("chunk_index", 0),
-                        "knowledge_base_id": hit.entity.get("knowledge_base_id", 0),
-                    },
-                ))
+                hits.append(
+                    SearchResult(
+                        id=str(hit.id),
+                        text=hit.entity.get("text", ""),
+                        score=round(hit.distance, 4),
+                        metadata={
+                            "doc_id": hit.entity.get("doc_id", 0),
+                            "chunk_index": hit.entity.get("chunk_index", 0),
+                            "knowledge_base_id": hit.entity.get("knowledge_base_id", 0),
+                        },
+                    )
+                )
         return hits
 
     async def delete_by_ids(self, ids: list[str]) -> None:
         if not ids or not self._collection:
             return
-        expr = f'id in [{", ".join(repr(i) for i in ids)}]'
+        expr = f"id in [{', '.join(repr(i) for i in ids)}]"
         await asyncio.to_thread(self._collection.delete, expr)
 
     async def delete_by_filter(self, filter_expr: dict) -> None:
@@ -176,7 +188,7 @@ class MilvusStore(IVectorStore):
             return None
         parts = []
         if "knowledge_base_id" in filter_expr:
-            parts.append(f'knowledge_base_id == {filter_expr["knowledge_base_id"]}')
+            parts.append(f"knowledge_base_id == {filter_expr['knowledge_base_id']}")
         if "doc_id" in filter_expr:
-            parts.append(f'doc_id == {filter_expr["doc_id"]}')
+            parts.append(f"doc_id == {filter_expr['doc_id']}")
         return " and ".join(parts) if parts else None

@@ -1,4 +1,5 @@
 """文档解析器抽象。"""
+
 from abc import ABC, abstractmethod
 
 

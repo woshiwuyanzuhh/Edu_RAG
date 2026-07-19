@@ -8,6 +8,7 @@
 
 风格统一：与同包其他接口一致，使用 ABC + @abstractmethod。
 """
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -15,8 +16,9 @@ from dataclasses import dataclass, field
 @dataclass
 class GuardResult:
     """Guardrail 检查结果。"""
+
     passed: bool = True
-    action: str = "pass"       # "pass" | "block" | "flag"
+    action: str = "pass"  # "pass" | "block" | "flag"
     reason: str = ""
     metadata: dict = field(default_factory=dict)
 

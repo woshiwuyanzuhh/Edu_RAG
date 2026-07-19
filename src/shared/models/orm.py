@@ -6,11 +6,8 @@ SQLAlchemy ORM 模型 — MySQL 表映射。
     - 新增 Session 表 (解决问题 #14 对话历史)
     - ExamRecord 新增维度评分字段 (解决问题 #24)
 """
-from datetime import datetime
 
-from sqlalchemy import (
-    Column, Integer, String, Text, Float, DateTime, Enum, ForeignKey, JSON, func
-)
+from sqlalchemy import JSON, Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -22,7 +19,9 @@ class KnowledgeBase(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), unique=True, nullable=False, comment="知识库名称（唯一）")
     description = Column(Text, default="", comment="描述")
-    retrieval_config = Column(JSON, nullable=True, default=None, comment="知识库级检索策略覆盖：{min_score, fusion_alpha, max_chunks, ...}")
+    retrieval_config = Column(
+        JSON, nullable=True, default=None, comment="知识库级检索策略覆盖：{min_score, fusion_alpha, max_chunks, ...}"
+    )
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -78,6 +77,7 @@ class ExamRecord(Base):
 
 class ChatSession(Base):
     """对话会话 — 支持多轮对话。#14"""
+
     __tablename__ = "chat_sessions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -90,6 +90,7 @@ class ChatSession(Base):
 
 class Feedback(Base):
     """用户反馈 — QA 答案质量评价。Phase 4 P3-4"""
+
     __tablename__ = "feedback"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -107,6 +108,7 @@ class BM25IndexCache(Base):
     knowledge_base_id=0 表示 legacy 全局索引（内存中 None 的序列化形式）。
     仅持久化 docs + metadatas，_tokenized 与 _bm25 对象启动时重建。
     """
+
     __tablename__ = "bm25_index_cache"
     knowledge_base_id = Column(Integer, primary_key=True, comment="知识库 ID；0 表示 legacy 全局索引")
     docs = Column(JSON, nullable=False, default=lambda: [], comment="文档文本列表")

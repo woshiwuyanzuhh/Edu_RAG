@@ -63,6 +63,14 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B"]
+ignore = [
+    "B008",   # FastAPI Depends/File/Query 在默认参数中调用 — 框架标准用法
+    "B904",   # except 块 raise from — 项目存量代码多，后续逐步修复
+    "E402",   # app.py 中 sys.path.insert 后才能 import — 项目结构必要
+    "F821",   # 字符串注解引用 TYPE_CHECKING 中的类型 — ruff 误报
+    "N818",   # 异常名不需要 Error 后缀 — 项目风格偏好
+    "N814",   # CamelCase 导入作为常量别名 — 局部使用
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

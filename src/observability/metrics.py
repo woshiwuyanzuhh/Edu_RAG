@@ -14,6 +14,7 @@ prometheus_fastapi_instrumentator 自动收集 HTTP 层指标（请求数/延迟
     with RETRIEVAL_LATENCY.labels(stage="vector").time():
         results = await vector_store.search(...)
 """
+
 from prometheus_client import Counter, Gauge, Histogram
 
 # ── 请求计数（按业务维度）──

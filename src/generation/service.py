@@ -6,22 +6,23 @@
 变更 (Opt-6): Feature Flags 动态组装管线步骤
 变更 (Opt-7): 集成 GuardrailChain
 """
-import logging
-from typing import AsyncGenerator
 
-from src.shared.config import settings
-from src.shared.cache import cache_strategy, make_cache_key
-from src.interfaces.generation_service import IGenerationService
-from src.interfaces.llm import ILLMClient
-from src.interfaces.retrieval_service import IRetrievalService
-from src.generation.qa_engine import qa_non_stream, qa_stream
-from src.generation.exam_engine import generate_exam, grade_exam, generate_exam_stream
-from src.generation.context.pipeline import ContextPipeline
+import logging
+from collections.abc import AsyncGenerator
+
 from src.generation.context.lost_middle import LostInMiddleReorder
+from src.generation.context.pipeline import ContextPipeline
+from src.generation.exam_engine import generate_exam, generate_exam_stream, grade_exam
 from src.generation.guardrails.chain import GuardrailChain
 from src.generation.guardrails.input_guard import InputGuard
 from src.generation.guardrails.output_guard import OutputGuard
 from src.generation.guardrails.refuse_guard import RefuseGuard
+from src.generation.qa_engine import qa_non_stream, qa_stream
+from src.interfaces.generation_service import IGenerationService
+from src.interfaces.llm import ILLMClient
+from src.interfaces.retrieval_service import IRetrievalService
+from src.shared.cache import cache_strategy, make_cache_key
+from src.shared.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +48,12 @@ class GenerationService(IGenerationService):
 
         if settings.generation.enable_relevance_filter:
             from src.generation.context.relevance_filter import RelevanceFilter
+
             steps.append(RelevanceFilter(self._llm))
 
         if settings.generation.enable_compression:
             from src.generation.context.compressor import SemanticCompressor
+
             steps.append(SemanticCompressor(self._llm))
 
         if settings.generation.enable_lost_middle:
@@ -67,6 +70,7 @@ class GenerationService(IGenerationService):
         """可选 HyDE 扩展 — 根据 Feature Flag 决定。"""
         if settings.generation.enable_hyde:
             from src.generation.hyde import hyde_expand
+
             return await hyde_expand(question, self._llm)
         return question
 

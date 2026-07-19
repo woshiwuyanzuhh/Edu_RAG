@@ -4,6 +4,7 @@
 
 P2-6 优化: 增删操作标记 dirty 延迟重建，避免每次 add/remove 都 O(n) 重建 BM25Okapi。
 """
+
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 # 延迟导入避免强制依赖
 try:
     from rank_bm25 import BM25Okapi
+
     _HAS_BM25 = True
 except ImportError:
     BM25Okapi = None  # type: ignore
@@ -27,6 +29,7 @@ def _simple_tokenize(text: str) -> list[str]:
     tokens: list[str] = []
     # 按空格/标点粗略分
     import re
+
     segments = re.split(r"[\s,，。！？；;：:]+", text)
     for seg in segments:
         if not seg:
@@ -37,7 +40,7 @@ def _simple_tokenize(text: str) -> list[str]:
         else:
             # 中文字符级 bigram
             for i in range(len(seg) - 1):
-                tokens.append(seg[i:i + 2])
+                tokens.append(seg[i : i + 2])
             if len(seg) == 1:
                 tokens.append(seg)
     return tokens
@@ -62,9 +65,7 @@ class BM25Index:
 
     def __init__(self):
         if not _HAS_BM25:
-            raise ImportError(
-                "rank_bm25 未安装。请执行: pip install rank-bm25"
-            )
+            raise ImportError("rank_bm25 未安装。请执行: pip install rank-bm25")
         self._bm25: Any = None
         self._docs: list[str] = []
         self._metadatas: list[dict] = []

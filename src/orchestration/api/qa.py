@@ -3,22 +3,22 @@
 变更 (Phase 1 P0-5): 通过 IGenerationService 门面调用，不再直接
 import generation 内部模块。
 """
+
 import logging
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.shared.database.mysql import get_db
-from src.shared.models.orm import KnowledgeBase
-from src.shared.models.orm import Feedback
-from src.shared.models.schemas import APIResponse, QARequest, FeedbackCreate
-from src.shared.exceptions import NotFoundError
-from src.orchestration.services import get_generation_service
-from src.orchestration.session import session_manager
-from src.orchestration.pagination import paginate, get_offset_limit, paginated_select
 from src.observability.retrieval_logger import retrieval_logger
 from src.orchestration.middleware.metrics import QA_REQUESTS
+from src.orchestration.pagination import paginated_select
+from src.orchestration.services import get_generation_service
+from src.orchestration.session import session_manager
+from src.shared.database.mysql import get_db
+from src.shared.exceptions import NotFoundError
+from src.shared.models.orm import Feedback, KnowledgeBase
+from src.shared.models.schemas import APIResponse, FeedbackCreate, QARequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/qa", tags=["问答"])
@@ -128,6 +128,7 @@ async def ask_question_stream(req: QARequest, db: AsyncSession = Depends(get_db)
 
 # ── 用户反馈 (Phase 4 P3-4) ──
 
+
 @router.post("/feedback", response_model=APIResponse)
 async def submit_feedback(req: FeedbackCreate, db: AsyncSession = Depends(get_db)):
     fb = Feedback(
@@ -154,13 +155,20 @@ async def list_feedback(
     # P2-2: 使用 paginated_select 消除重复的分页查询模式
     def _serialize(f: Feedback) -> dict:
         return {
-            "id": f.id, "session_id": f.session_id, "question": f.question[:200],
-            "answer": f.answer[:200], "rating": f.rating, "comment": f.comment,
+            "id": f.id,
+            "session_id": f.session_id,
+            "question": f.question[:200],
+            "answer": f.answer[:200],
+            "rating": f.rating,
+            "comment": f.comment,
             "created_at": f.created_at.isoformat() if f.created_at else None,
         }
 
     result = await paginated_select(
-        db, Feedback, page, page_size,
+        db,
+        Feedback,
+        page,
+        page_size,
         order_by=Feedback.created_at.desc(),
         serializer=_serialize,
     )

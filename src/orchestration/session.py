@@ -7,8 +7,10 @@
     - Redis: 热数据（最近活跃会话），TTL 30min
     - MySQL: 持久化（ChatSession 表）
 """
-import uuid
+
 import logging
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,7 +42,9 @@ class SessionManager:
         await db.commit()
 
         # 缓存到 Redis
-        await self._redis.set_json(f"session:{session_key}", {"messages": [], "kb_id": knowledge_base_id}, ttl=SESSION_TTL)
+        await self._redis.set_json(
+            f"session:{session_key}", {"messages": [], "kb_id": knowledge_base_id}, ttl=SESSION_TTL
+        )
 
         logger.info(f"session_created session_key={session_key}")
         return session_key
@@ -65,6 +69,7 @@ class SessionManager:
     async def append_message(self, session_key: str, role: str, content: str, db: AsyncSession) -> None:
         """P2: 向会话追加消息（增量更新，避免 select + 全量覆盖）。"""
         import json
+
         from sqlalchemy import text as sql_text
 
         new_msg = {"role": role, "content": content}
@@ -81,7 +86,9 @@ class SessionManager:
         table = ChatSession.__tablename__
         await db.execute(
             sql_text(
-                f"UPDATE `{table}` SET messages = JSON_ARRAY_APPEND(IFNULL(messages, '[]'), '$', CAST(:msg AS JSON)) WHERE session_key = :key"
+                f"UPDATE `{table}` SET messages = "
+                f"JSON_ARRAY_APPEND(IFNULL(messages, '[]'), '$', CAST(:msg AS JSON)) "
+                f"WHERE session_key = :key"
             ),
             {"msg": json.dumps(new_msg, ensure_ascii=False), "key": session_key},
         )

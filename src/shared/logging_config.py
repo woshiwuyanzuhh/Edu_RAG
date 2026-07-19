@@ -10,6 +10,7 @@
     logger = get_logger(__name__)
     logger.info(f"retrieval_complete query={query} hits={hit_count} latency={latency_ms}ms")
 """
+
 import logging
 import sys
 
@@ -53,9 +54,7 @@ def setup_logging(debug: bool = False) -> None:
     for lib in ("httpx", "openai", "pymilvus", "sqlalchemy.engine", "urllib3"):
         logging.getLogger(lib).setLevel(logging.WARNING)
 
-    logging.getLogger(__name__).info(
-        f"logging_initialized level={'DEBUG' if debug else 'INFO'} format=json"
-    )
+    logging.getLogger(__name__).info(f"logging_initialized level={'DEBUG' if debug else 'INFO'} format=json")
 
 
 def get_logger(name: str) -> logging.Logger:

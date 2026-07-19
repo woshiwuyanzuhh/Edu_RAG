@@ -3,6 +3,7 @@
 适用场景：IT/编程教程、API 文档、软件手册、技术博客。
 保留：代码块内容、技术术语、配置示例。
 """
+
 import re
 
 from src.ingress.cleaners.base import BaseCleaner
@@ -13,12 +14,15 @@ class TechCleaner(BaseCleaner):
 
     def clean(self, text: str) -> str:
         text = super().clean(text)
-        return self._filter_lines(text, [
-            self._is_shell_prompt,
-            self._is_line_number_prefix,
-            self._is_todo_comment,
-            self._is_diff_marker_only,
-        ])
+        return self._filter_lines(
+            text,
+            [
+                self._is_shell_prompt,
+                self._is_line_number_prefix,
+                self._is_todo_comment,
+                self._is_diff_marker_only,
+            ],
+        )
 
     @staticmethod
     def _is_shell_prompt(line: str) -> bool:

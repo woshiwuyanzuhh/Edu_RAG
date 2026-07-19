@@ -9,10 +9,11 @@ FastAPI 应用入口 — 四层 RAG 架构的编排中心。
 中间件链（Phase 3）:
     RequestID → Auth → RateLimit → CORS → ErrorHandler
 """
-import sys
-from pathlib import Path
-from contextlib import asynccontextmanager
+
 import asyncio
+import sys
+from contextlib import asynccontextmanager
+from pathlib import Path
 
 # Windows UTF-8
 if sys.platform == "win32":
@@ -24,17 +25,17 @@ sys.path.insert(0, str(BASE_DIR))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse, FileResponse
+from fastapi.responses import FileResponse, ORJSONResponse
 
-from src.shared.config import settings, PROJECT_ROOT
-from src.shared.logging_config import setup_logging, get_logger
-from src.shared.security import validate_secrets, print_security_warnings
-from src.shared.cache import set_redis_client
-from src.shared.database.mysql import init_mysql, close_mysql
-from src.shared.database.redis import redis_client
-from src.retrieval.vector_store import get_vector_store
 from src.orchestration.middleware import AuthMiddleware, RequestIDMiddleware, TimeoutMiddleware, register_error_handlers
 from src.orchestration.middleware.rate_limit import RateLimitMiddleware
+from src.retrieval.vector_store import get_vector_store
+from src.shared.cache import set_redis_client
+from src.shared.config import PROJECT_ROOT, settings
+from src.shared.database.mysql import close_mysql, init_mysql
+from src.shared.database.redis import redis_client
+from src.shared.logging_config import get_logger, setup_logging
+from src.shared.security import print_security_warnings, validate_secrets
 
 logger = get_logger(__name__)
 
@@ -43,6 +44,7 @@ MAX_BODY_MB = settings.app.max_upload_size_mb
 
 
 # ======================== 生命周期 ========================
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -91,6 +93,7 @@ async def lifespan(app: FastAPI):
     # 5. BM25 索引加载（P0-C3: 从 MySQL 恢复，避免崩溃后混合检索静默失效）
     try:
         from src.retrieval.keyword import load_all_bm25_from_db
+
         bm25_count = await load_all_bm25_from_db()
         logger.info(f"bm25_restored count={bm25_count}")
     except Exception as e:
@@ -122,10 +125,10 @@ app = FastAPI(
 )
 
 # ── 中间件注册（顺序重要）──
-app.add_middleware(RequestIDMiddleware)   # 1. 先注入 request_id
-app.add_middleware(AuthMiddleware)        # 2. 再鉴权
-app.add_middleware(TimeoutMiddleware)     # 3. 超时保护（SSE 豁免）
-app.add_middleware(RateLimitMiddleware)   # 4. 限流（P2-8）
+app.add_middleware(RequestIDMiddleware)  # 1. 先注入 request_id
+app.add_middleware(AuthMiddleware)  # 2. 再鉴权
+app.add_middleware(TimeoutMiddleware)  # 3. 超时保护（SSE 豁免）
+app.add_middleware(RateLimitMiddleware)  # 4. 限流（P2-8）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.app.cors_origins,
@@ -137,6 +140,8 @@ app.add_middleware(
 
 # ── 请求体大小限制 ──
 from fastapi import Request as FastAPIRequest
+
+
 @app.middleware("http")
 async def limit_body_size(request: FastAPIRequest, call_next):
     content_length = request.headers.get("content-length")
@@ -144,20 +149,22 @@ async def limit_body_size(request: FastAPIRequest, call_next):
         max_bytes = MAX_BODY_MB * 1024 * 1024
         if int(content_length) > max_bytes:
             from fastapi.responses import ORJSONResponse as _ORJ
+
             return _ORJ(
                 status_code=413,
                 content={"success": False, "message": f"请求体超过 {MAX_BODY_MB}MB 限制", "data": None},
             )
     return await call_next(request)
 
+
 # ── 异常处理 ──
 register_error_handlers(app)
 
 # ── API 路由 ──
-from src.orchestration.api.knowledge import router as kb_router
 from src.orchestration.api.documents import router as docs_router
-from src.orchestration.api.qa import router as qa_router
 from src.orchestration.api.exam import router as exam_router
+from src.orchestration.api.knowledge import router as kb_router
+from src.orchestration.api.qa import router as qa_router
 
 app.include_router(kb_router)
 app.include_router(docs_router)
@@ -165,6 +172,7 @@ app.include_router(qa_router)
 app.include_router(exam_router)
 
 # ── 健康检查（P1-DR8: 分离 liveness / readiness）──
+
 
 @app.get("/health")
 async def health_check():
@@ -216,8 +224,10 @@ async def _readiness_check():
 
     # MySQL
     try:
-        from src.shared.database.mysql import _session_factory
         from sqlalchemy import text as _sql_text
+
+        from src.shared.database.mysql import _session_factory
+
         if _session_factory is not None:
             async with _session_factory() as session:
                 await session.execute(_sql_text("SELECT 1"))
@@ -255,18 +265,22 @@ async def _readiness_check():
 
 # ── Prometheus 指标（P2-2）──
 
+
 def _setup_prometheus():
     """尝试注册 Prometheus 指标端点（可选依赖）。P2-C10: 含业务指标。"""
     try:
         from prometheus_fastapi_instrumentator import Instrumentator
+
         # P2-C10: 注册业务指标（Counter/Histogram/Gauge 定义即注册到全局 REGISTRY）
         from src.orchestration.middleware import metrics  # noqa: F401
+
         instrumentator = Instrumentator()
         instrumentator.instrument(app)
         instrumentator.expose(app, endpoint="/metrics", include_in_schema=False)
         logger.info("prometheus_metrics_enabled endpoint=/metrics (含业务指标)")
     except ImportError:
         logger.info("prometheus_fastapi_instrumentator 未安装，/metrics 不可用")
+
 
 _setup_prometheus()
 
@@ -279,6 +293,7 @@ API_PATH_PREFIXES = ("/api", "/health", "/metrics", "/docs", "/openapi.json", "/
 
 if FRONTEND_DIST.exists():
     from fastapi.staticfiles import StaticFiles
+
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="frontend_assets")
 
     @app.get("/")
@@ -287,6 +302,7 @@ if FRONTEND_DIST.exists():
         # 排除 API 和监控路径（P3-4）
         if full_path and any(full_path.startswith(p.lstrip("/")) for p in API_PATH_PREFIXES):
             from fastapi.responses import JSONResponse
+
             return JSONResponse(status_code=404, content={"success": False, "message": "Not Found"})
         file_path = FRONTEND_DIST / full_path if full_path else FRONTEND_DIST / "index.html"
         # P2-8: 路径遍历校验 — resolve() 后断言仍在 FRONTEND_DIST 内
@@ -294,9 +310,11 @@ if FRONTEND_DIST.exists():
             resolved = file_path.resolve()
             if not str(resolved).startswith(str(FRONTEND_DIST.resolve())):
                 from fastapi.responses import JSONResponse
+
                 return JSONResponse(status_code=404, content={"success": False, "message": "Not Found"})
         except Exception:
             from fastapi.responses import JSONResponse
+
             return JSONResponse(status_code=404, content={"success": False, "message": "Not Found"})
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
@@ -307,10 +325,12 @@ if FRONTEND_DIST.exists():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("src.orchestration.app:app", host=settings.app.host, port=settings.app.port, reload=True)
 
 
 def main():
     """CLI 入口 — 供 pyproject.toml 的 [project.scripts] 使用。"""
     import uvicorn
+
     uvicorn.run("src.orchestration.app:app", host=settings.app.host, port=settings.app.port)

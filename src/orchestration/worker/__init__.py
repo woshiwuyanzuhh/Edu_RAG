@@ -10,6 +10,7 @@
 配置:
     APP__ASYNC_INGESTION=true 时，API 投递任务到队列；false 时同步执行（开发模式）。
 """
-from src.orchestration.worker.client import enqueue_ingestion, close_arq_pool
+
+from src.orchestration.worker.client import close_arq_pool, enqueue_ingestion
 
 __all__ = ["enqueue_ingestion", "close_arq_pool"]

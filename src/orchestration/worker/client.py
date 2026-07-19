@@ -3,6 +3,7 @@
 API 进程通过 enqueue_ingestion 投递任务；投递失败时调用方回退同步处理，
 保证开发环境（未启动 worker）也能正常工作。
 """
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,15 +17,18 @@ async def _get_arq_pool():
     if _pool is None:
         from arq import create_pool
         from arq.connections import RedisSettings
+
         from src.shared.config import settings
 
         pwd = settings.redis.password.get_secret_value()
-        _pool = await create_pool(RedisSettings(
-            host=settings.redis.host,
-            port=settings.redis.port,
-            password=pwd or None,
-            database=settings.redis.db,
-        ))
+        _pool = await create_pool(
+            RedisSettings(
+                host=settings.redis.host,
+                port=settings.redis.port,
+                password=pwd or None,
+                database=settings.redis.db,
+            )
+        )
     return _pool
 
 
@@ -38,7 +42,9 @@ async def enqueue_ingestion(*, doc_id: int, kb_id: int, doc_type: str) -> bool:
         pool = await _get_arq_pool()
         await pool.enqueue_job(
             "process_document_ingestion_task",
-            doc_id=doc_id, kb_id=kb_id, doc_type=doc_type,
+            doc_id=doc_id,
+            kb_id=kb_id,
+            doc_type=doc_type,
         )
         logger.info(f"ingestion_enqueued doc_id={doc_id}")
         return True

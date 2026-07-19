@@ -2,6 +2,7 @@
 
 New code should import from src.providers.llm.client.
 """
+
 from src.providers.llm.client import OpenAICompatClient
 
 __all__ = ["OpenAICompatClient"]

@@ -11,6 +11,7 @@
     再由 storage.save 决定最终去向：本地保留 / 上传对象存储后删本地。
     Document.file_path 存储统一 key（本地=绝对路径，对象存储=s3:// URI）。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -64,8 +65,9 @@ class ObjectStorage(StorageBackend):
     上传成功后删除本地临时文件，实现"文件不绑本地磁盘"。
     """
 
-    def __init__(self, endpoint: str, access_key: str, secret_key: str,
-                 bucket: str, region: str = "", prefix: str = "documents"):
+    def __init__(
+        self, endpoint: str, access_key: str, secret_key: str, bucket: str, region: str = "", prefix: str = "documents"
+    ):
         self._endpoint = endpoint
         self._access_key = access_key
         self._secret_key = secret_key
@@ -77,6 +79,7 @@ class ObjectStorage(StorageBackend):
     def _get_client(self):
         if self._client is None:
             import boto3  # 延迟导入，避免强制依赖
+
             self._client = boto3.client(
                 "s3",
                 endpoint_url=self._endpoint or None,
@@ -94,9 +97,7 @@ class ObjectStorage(StorageBackend):
 
     async def save(self, local_path: str, key: str) -> str:
         obj_key = self._obj_key(local_path)
-        await asyncio.to_thread(
-            self._get_client().upload_file, local_path, self._bucket, obj_key
-        )
+        await asyncio.to_thread(self._get_client().upload_file, local_path, self._bucket, obj_key)
         # 上传成功后删除本地临时文件，释放磁盘
         await asyncio.to_thread(os.remove, local_path)
         logger.info(f"object_storage_uploaded bucket={self._bucket} key={obj_key}")
@@ -106,18 +107,14 @@ class ObjectStorage(StorageBackend):
         if not key or not key.startswith("s3://"):
             return
         obj_key = key.replace(f"s3://{self._bucket}/", "", 1)
-        await asyncio.to_thread(
-            self._get_client().delete_object, Bucket=self._bucket, Key=obj_key
-        )
+        await asyncio.to_thread(self._get_client().delete_object, Bucket=self._bucket, Key=obj_key)
 
     async def exists(self, key: str) -> bool:
         if not key or not key.startswith("s3://"):
             return False
         obj_key = key.replace(f"s3://{self._bucket}/", "", 1)
         try:
-            await asyncio.to_thread(
-                self._get_client().head_object, Bucket=self._bucket, Key=obj_key
-            )
+            await asyncio.to_thread(self._get_client().head_object, Bucket=self._bucket, Key=obj_key)
             return True
         except Exception:
             return False
@@ -131,6 +128,7 @@ def get_storage() -> StorageBackend:
     global _default_storage
     if _default_storage is None:
         from src.shared.config import settings
+
         if settings.storage.provider == "object":
             _default_storage = ObjectStorage(
                 endpoint=settings.storage.endpoint,

@@ -4,14 +4,16 @@ Ollama Embedding — 通过 OpenAI 兼容 API 调用 Ollama BGE-M3。
 解决问题 #15: embed() 接口接受 list[str]，一次批量发送。
 并发控制: 通过 asyncio.Semaphore 限制同时在飞的 Embedding 请求。
 """
+
 import asyncio
 import hashlib
 import logging
+
 from openai import AsyncOpenAI
 
 from src.interfaces.embedder import IEmbedder
-from src.shared.config import settings
 from src.shared.cache import cache_strategy
+from src.shared.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +61,7 @@ class OllamaEmbedder(IEmbedder):
 
         all_embeddings: list[list[float]] = []
         for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
+            batch = texts[i : i + batch_size]
             batch_embeddings = await self._embed_batch(batch)
             all_embeddings.extend(batch_embeddings)
 

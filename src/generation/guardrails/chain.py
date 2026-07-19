@@ -4,8 +4,10 @@
     - 安全类 Guard 检查服务不可用 → 拒绝（block），保证安全
     - 非安全类 Guard 检查服务不可用 → 放行（pass），保证可用性
 """
+
 import logging
-from src.interfaces.guardrail import IGuardrail, GuardResult
+
+from src.interfaces.guardrail import GuardResult, IGuardrail
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +69,8 @@ class GuardrailChain:
                 if guard.is_blocking:
                     # 安全类 Guard 异常 → 拒绝（安全优先）
                     logger.error(f"guardrail_error_blocking stage={stage} guard={guard_name} error={e}")
-                    return GuardResult(passed=False, action="block",
-                                       reason=f"安全检查服务异常: {guard_name}")
+                    return GuardResult(passed=False, action="block", reason=f"安全检查服务异常: {guard_name}")
                 # 非阻塞 Guard 异常 → 忽略（可用性优先）
                 logger.warning(f"guardrail_error_non_blocking stage={stage} guard={guard_name} error={e}")
 
-        return GuardResult(passed=True, action="pass",
-                           reason="; ".join(flags) if flags else "all checks passed")
+        return GuardResult(passed=True, action="pass", reason="; ".join(flags) if flags else "all checks passed")

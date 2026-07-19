@@ -2,10 +2,12 @@
 
 解决问题：检索后上下文质量二次验证。过滤不相关 chunk，减少噪声。
 """
+
 import json
 import logging
-from src.interfaces.llm import ILLMClient, Message
+
 from src.interfaces.context_processor import IContextProcessor
+from src.interfaces.llm import ILLMClient, Message
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +66,7 @@ class RelevanceFilter(IContextProcessor):
 
             # 兜底：至少保留 min_chunks 个
             if len(filtered) < self._min_chunks:
-                filtered = chunks[:self._min_chunks]
+                filtered = chunks[: self._min_chunks]
 
             logger.debug(f"relevance_filter {len(chunks)}→{len(filtered)}")
             return filtered

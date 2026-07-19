@@ -2,6 +2,7 @@
 
 对外唯一入口: IngestionService (IIngestionService 门面)
 """
+
 from src.ingress.service import IngestionService
 
 __all__ = ["IngestionService"]

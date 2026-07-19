@@ -5,6 +5,7 @@
 
 所有 Guard 实现 IGuardrail 接口，通过 GuardrailChain 链式调用。
 """
+
 from src.generation.guardrails.chain import GuardrailChain
 
 __all__ = ["GuardrailChain"]

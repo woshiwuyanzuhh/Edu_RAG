@@ -2,10 +2,11 @@
 
 解决问题：原则 — 可观测性应该是基础设施层的能力，通过装饰器注入，不侵入业务代码。
 """
-import time
+
 import functools
 import logging
-from typing import Callable
+import time
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ def traced(name: str | None = None):
     日志输出：
         trace name=recall duration_ms=45.2 status=ok
     """
+
     def decorator(func: Callable):
         span_name = name or func.__name__
 
@@ -46,6 +48,7 @@ def traced(name: str | None = None):
 
 def traced_sync(name: str | None = None):
     """同步函数追踪装饰器（用于 to_thread 包装的函数）。"""
+
     def decorator(func: Callable):
         span_name = name or func.__name__
 

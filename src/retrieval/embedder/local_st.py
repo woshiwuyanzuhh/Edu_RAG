@@ -1,8 +1,10 @@
 """
 本地 Sentence-Transformers Embedding。
 """
+
 import asyncio
 import logging
+
 from sentence_transformers import SentenceTransformer
 
 from src.interfaces.embedder import IEmbedder

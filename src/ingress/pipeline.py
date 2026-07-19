@@ -5,18 +5,19 @@ Ingestion 管线 — parse → clean → chunk → filter 完整流程。
     - 每块附加元数据 (doc_id, kb_id, chunk_index, source_file)
     - 块大小/重叠度可通过配置调整
 """
+
 import asyncio
 import logging
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 
-from src.ingress.parsers import PARSER_REGISTRY
-from src.ingress.cleaners import CLEANER_REGISTRY
 from src.ingress.chunkers import RecursiveChunker
-from src.interfaces.parser import IParser
-from src.interfaces.cleaner import ICleaner
+from src.ingress.cleaners import CLEANER_REGISTRY
+from src.ingress.parsers import PARSER_REGISTRY
 from src.interfaces.chunker import IChunker
-from src.shared.exceptions import UnsupportedFileType, EmptyDocumentError
+from src.interfaces.cleaner import ICleaner
+from src.interfaces.parser import IParser
+from src.shared.exceptions import EmptyDocumentError, UnsupportedFileType
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ChunkWithMeta:
     """带元数据的文本块。"""
+
     text: str
     doc_id: int = 0
     kb_id: int = 0
@@ -35,6 +37,7 @@ class ChunkWithMeta:
 @dataclass
 class IngestionResult:
     """写入管线结果。"""
+
     chunks: list[ChunkWithMeta]
     total_chars: int = 0
     original_chars: int = 0
@@ -97,17 +100,19 @@ async def run_ingestion(
     # 7. 附加元数据
     chunks_with_meta = []
     for i, text in enumerate(filtered_chunks):
-        chunks_with_meta.append(ChunkWithMeta(
-            text=text,
-            doc_id=doc_id,
-            kb_id=kb_id,
-            chunk_index=i,
-            source_file=Path(file_path).name,
-            metadata={
-                "doc_type": doc_type,
-                "char_count": len(text),
-            },
-        ))
+        chunks_with_meta.append(
+            ChunkWithMeta(
+                text=text,
+                doc_id=doc_id,
+                kb_id=kb_id,
+                chunk_index=i,
+                source_file=Path(file_path).name,
+                metadata={
+                    "doc_type": doc_type,
+                    "char_count": len(text),
+                },
+            )
+        )
 
     total_chars = sum(len(c.text) for c in chunks_with_meta)
     stats = {

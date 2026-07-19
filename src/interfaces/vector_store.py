@@ -1,4 +1,5 @@
 """向量数据库抽象。"""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -6,6 +7,7 @@ from dataclasses import dataclass, field
 @dataclass
 class VectorItem:
     """待插入的向量项。"""
+
     id: str
     text: str
     embedding: list[float]
@@ -15,6 +17,7 @@ class VectorItem:
 @dataclass
 class Chunk:
     """统一的 Chunk 类型 — Retrieval 输出和管线输入的标准格式 (Opt-14)。"""
+
     text: str
     score: float = 0.0
     metadata: dict = field(default_factory=dict)
@@ -26,6 +29,7 @@ class Chunk:
 @dataclass
 class SearchResult:
     """检索结果项。"""
+
     id: str
     text: str
     score: float

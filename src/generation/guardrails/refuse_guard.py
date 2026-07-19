@@ -2,9 +2,11 @@
 
 原则：检索结果置信度过低时，系统应明确拒绝回答，而非编造信息。
 """
+
 import logging
+
+from src.interfaces.guardrail import GuardResult, IGuardrail
 from src.shared.config import settings
-from src.interfaces.guardrail import IGuardrail, GuardResult
 
 logger = logging.getLogger(__name__)
 

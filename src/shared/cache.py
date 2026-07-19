@@ -3,11 +3,13 @@
 
 解决问题 #1: Redis 已连接但完全未使用。
 """
-import json
-import hashlib
+
 import functools
+import hashlib
+import json
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from src.shared.config import settings
 
@@ -31,6 +33,7 @@ def _get_redis():
 
 # ── 缓存键生成 ──
 
+
 def make_cache_key(prefix: str, *args, **kwargs) -> str:
     """生成确定性的缓存键。
 
@@ -45,6 +48,7 @@ def make_cache_key(prefix: str, *args, **kwargs) -> str:
 
 
 # ── 异步缓存装饰器 ──
+
 
 def async_cached(prefix: str, ttl: int | None = None):
     """异步函数结果缓存装饰器。
@@ -97,6 +101,7 @@ def async_cached(prefix: str, ttl: int | None = None):
 
 
 # ── 多级缓存策略 ──
+
 
 class CacheStrategy:
     """多级缓存策略管理器。

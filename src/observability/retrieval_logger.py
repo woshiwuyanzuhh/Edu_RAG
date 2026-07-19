@@ -2,10 +2,11 @@
 
 Phase 4 P3-5: 数据飞轮的基础 — 线上服务导出检索日志，离线评估使用。
 """
+
 import json
 import logging
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +49,12 @@ class RetrievalLogger:
             "timestamp": datetime.utcnow().isoformat(),
             "query": query,
             "chunks": [
-                {"text": c.get("text", "")[:300], "score": c.get("score", 0),
-                 "doc_id": c.get("doc_id", "?"), "chunk_index": c.get("chunk_index", 0)}
+                {
+                    "text": c.get("text", "")[:300],
+                    "score": c.get("score", 0),
+                    "doc_id": c.get("doc_id", "?"),
+                    "chunk_index": c.get("chunk_index", 0),
+                }
                 for c in chunks
             ],
             "answer": answer[:500],
@@ -60,6 +65,7 @@ class RetrievalLogger:
         try:
             # P2: aiofiles 异步写，避免在 async QA 路径中阻塞事件循环
             import aiofiles
+
             async with aiofiles.open(log_file, "a", encoding="utf-8") as f:
                 await f.write(json.dumps(record, ensure_ascii=False) + "\n")
         except Exception as e:

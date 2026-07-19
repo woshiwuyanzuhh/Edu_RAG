@@ -3,6 +3,7 @@
 适用场景：商业报告、管理文档、PPT 导出文本、会议纪要。
 保留：数据图表描述、分析结论、管理术语。
 """
+
 import re
 
 from src.ingress.cleaners.base import BaseCleaner
@@ -13,12 +14,15 @@ class BusinessCleaner(BaseCleaner):
 
     def clean(self, text: str) -> str:
         text = super().clean(text)
-        return self._filter_lines(text, [
-            self._is_ppt_page_number,
-            self._is_confidential_watermark,
-            self._is_slide_footer,
-            self._is_corporate_boilerplate,
-        ])
+        return self._filter_lines(
+            text,
+            [
+                self._is_ppt_page_number,
+                self._is_confidential_watermark,
+                self._is_slide_footer,
+                self._is_corporate_boilerplate,
+            ],
+        )
 
     @staticmethod
     def _is_ppt_page_number(line: str) -> bool:
@@ -38,9 +42,14 @@ class BusinessCleaner(BaseCleaner):
         if len(line) > 30:
             return False
         keywords = [
-            "机密", "绝密", "内部使用", "内部资料",
-            "Confidential", "Proprietary",
-            "商业秘密", "不得外传",
+            "机密",
+            "绝密",
+            "内部使用",
+            "内部资料",
+            "Confidential",
+            "Proprietary",
+            "商业秘密",
+            "不得外传",
         ]
         return any(kw in line for kw in keywords)
 

@@ -1,23 +1,25 @@
 """
 全局异常处理器 — 统一错误响应格式。
 """
+
 import logging
+
 from fastapi import FastAPI, Request
 from fastapi.responses import ORJSONResponse
 
+from src.observability import get_request_id
 from src.shared.exceptions import (
     EduRAGError,
-    NotFoundError,
-    UnauthorizedError,
-    ValidationError,
-    ParseError,
-    UnsupportedFileType,
-    FileTooLarge,
     EmptyDocumentError,
+    FileTooLarge,
     LLMError,
+    NotFoundError,
+    ParseError,
+    UnauthorizedError,
+    UnsupportedFileType,
+    ValidationError,
 )
 from src.shared.models.schemas import APIResponse
-from src.observability import get_request_id
 
 logger = logging.getLogger(__name__)
 

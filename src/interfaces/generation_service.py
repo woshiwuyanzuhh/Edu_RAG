@@ -4,8 +4,9 @@ Orchestration 层通过此接口调用生成能力，不直接依赖 qa_engine /
 
 解决问题：原则 #2 — 每层必须且只能暴露一个 Facade 接口。
 """
+
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 
 class IGenerationService(ABC):

@@ -1,4 +1,5 @@
 """Word 文档解析器 — python-docx。"""
+
 from docx import Document as DocxDocument
 
 from src.interfaces.parser import IParser

@@ -1,4 +1,5 @@
 """Retry helpers for LLM providers."""
+
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
@@ -7,8 +8,12 @@ logger = logging.getLogger(__name__)
 
 # Errors that should fail fast. Rate limits are intentionally retryable.
 NON_RETRYABLE = (
-    "401", "403", "invalid api key", "authentication",
-    "quota", "maximum context length",
+    "401",
+    "403",
+    "invalid api key",
+    "authentication",
+    "quota",
+    "maximum context length",
 )
 
 
@@ -39,7 +44,7 @@ async def with_retry(
             if attempt == max_retries or not _is_retryable(e):
                 raise
 
-            delay = base_delay * (backoff_factor ** attempt)
+            delay = base_delay * (backoff_factor**attempt)
             logger.warning(
                 f"llm_retry attempt={attempt + 1}/{max_retries} delay={round(delay, 1)}s error={str(e)[:200]}"
             )

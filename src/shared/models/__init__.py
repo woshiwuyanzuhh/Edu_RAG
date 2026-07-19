@@ -1,22 +1,22 @@
-from src.shared.models.orm import Base, KnowledgeBase, Document, ExamRecord, ChatSession
+from src.shared.models.orm import Base, ChatSession, Document, ExamRecord, KnowledgeBase
 from src.shared.models.schemas import (
     APIResponse,
-    PaginatedResponse,
-    KnowledgeBaseCreate,
-    KnowledgeBaseUpdate,
-    KnowledgeBaseResponse,
+    DimensionScore,
     DocumentResponse,
-    QARequest,
-    QAResponse,
-    SourceItem,
     ExamGenerateRequest,
     ExamGenerateResponse,
-    QuestionItem,
     ExamGradeRequest,
     ExamGradeResponse,
-    GradeDetail,
-    DimensionScore,
     ExamRecordItem,
+    GradeDetail,
+    KnowledgeBaseCreate,
+    KnowledgeBaseResponse,
+    KnowledgeBaseUpdate,
+    PaginatedResponse,
+    QARequest,
+    QAResponse,
+    QuestionItem,
+    SourceItem,
 )
 
 __all__ = [

@@ -6,6 +6,7 @@
     3. 检测损坏：page_count == 0 或 is_dirty，用 pikepdf 修复并重新打开
     4. 加密但无密码可解 → 抛 ParseError 给出明确提示
 """
+
 import io
 import logging
 from contextlib import redirect_stderr
@@ -29,10 +30,8 @@ class PDFParser(IParser):
         try:
             with redirect_stderr(io.StringIO()) as buf:
                 text = self._parse_with_recovery(file_path)
-                mupdf_warnings = [
-                    line for line in buf.getvalue().splitlines() if line.strip()
-                ]
-        except _EncryptedPDFError as e:
+                mupdf_warnings = [line for line in buf.getvalue().splitlines() if line.strip()]
+        except _EncryptedPDFError:
             # 加密但无法解锁 — 给用户明确提示
             raise ParseError(
                 f"PDF 已加密，无法解析: {file_path}",
@@ -49,9 +48,7 @@ class PDFParser(IParser):
             raise ParseError(f"PDF 解析失败: {file_path}", detail=detail)
 
         if mupdf_warnings:
-            logger.warning(
-                f"pdf_parse_warnings file={file_path} warnings={mupdf_warnings[:3]}"
-            )
+            logger.warning(f"pdf_parse_warnings file={file_path} warnings={mupdf_warnings[:3]}")
         return text
 
     def _parse_with_recovery(self, file_path: str) -> str:
@@ -74,10 +71,7 @@ class PDFParser(IParser):
 
             # 检测 page_count == 0（可能是损坏的对象流）
             if doc.page_count == 0:
-                logger.warning(
-                    f"pdf_zero_pages_recovering file={file_path} "
-                    f"is_dirty={doc.is_dirty}"
-                )
+                logger.warning(f"pdf_zero_pages_recovering file={file_path} is_dirty={doc.is_dirty}")
                 doc.close()
                 return self._parse_via_pikepdf(file_path, password="")
 

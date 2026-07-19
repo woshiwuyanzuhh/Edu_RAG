@@ -1,4 +1,5 @@
 """文本清洗器抽象。"""
+
 from abc import ABC, abstractmethod
 
 

@@ -4,6 +4,7 @@ Orchestration 层通过此接口调用文档写入管线，不直接依赖 ingre
 
 解决问题：原则 #2 — 每层必须且只能暴露一个 Facade 接口。
 """
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -11,6 +12,7 @@ from dataclasses import dataclass, field
 @dataclass
 class IngestionResult:
     """写入管线结果。"""
+
     chunks: list[dict] = field(default_factory=list)  # [{text, chunk_index, metadata}]
     total_chars: int = 0
     original_chars: int = 0

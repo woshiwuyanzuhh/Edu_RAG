@@ -3,9 +3,10 @@
 P2-2: 抽取 exam_engine._parse_json_response 与 rerank.py 的重复 JSON 解析逻辑。
 统一处理 markdown code fence 去除 + json.loads + 正则兜底。
 """
+
 import json
-import re
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,8 @@ def parse_llm_json(response: str, label: str = "JSON", expect_list: bool = False
     """
     response = response.strip()
     # 鲁棒去除 code fence（支持有无换行）
-    response = re.sub(r'^```(?:json)?\s*\n?', '', response)
-    response = re.sub(r'\n?\s*```\s*$', '', response)
+    response = re.sub(r"^```(?:json)?\s*\n?", "", response)
+    response = re.sub(r"\n?\s*```\s*$", "", response)
     try:
         return json.loads(response)
     except json.JSONDecodeError:

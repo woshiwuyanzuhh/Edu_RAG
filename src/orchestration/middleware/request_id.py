@@ -3,8 +3,10 @@ X-Request-ID 中间件 — 全链路追踪。
 
 解决问题 #4: 日志中注入 request_id，方便串联一次请求的所有日志。
 """
-import uuid
+
 import logging
+import uuid
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 

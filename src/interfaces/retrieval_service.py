@@ -1,4 +1,5 @@
 """检索服务接口 — Generation 层通过此接口调用检索，不再直接依赖 Retrieval 内部模块。"""
+
 from abc import ABC, abstractmethod
 
 from src.interfaces.vector_store import SearchResult

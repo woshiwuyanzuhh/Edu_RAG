@@ -1,13 +1,15 @@
 """LLM 客户端抽象。"""
+
 from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import AsyncGenerator
 
 
 @dataclass
 class Message:
     """对话消息。"""
-    role: str       # "system" | "user" | "assistant"
+
+    role: str  # "system" | "user" | "assistant"
     content: str
 
 

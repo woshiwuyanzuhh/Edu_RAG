@@ -3,6 +3,7 @@
 适用场景：法条、判例、合同、法律意见书。
 保留：法条编号（第X条）、法引用、条款结构。
 """
+
 import re
 
 from src.ingress.cleaners.base import BaseCleaner
@@ -13,17 +14,23 @@ class LegalCleaner(BaseCleaner):
 
     def clean(self, text: str) -> str:
         text = super().clean(text)
-        return self._filter_lines(text, [
-            self._is_judicial_watermark,
-            self._is_page_header_footer,
-            self._is_document_number,
-        ])
+        return self._filter_lines(
+            text,
+            [
+                self._is_judicial_watermark,
+                self._is_page_header_footer,
+                self._is_document_number,
+            ],
+        )
 
     @staticmethod
     def _is_judicial_watermark(line: str) -> bool:
         """司法文书水印/密级行。"""
         keywords = [
-            "机密", "秘密", "内部使用", "仅供参阅",
+            "机密",
+            "秘密",
+            "内部使用",
+            "仅供参阅",
         ]
         if len(line) > 30:
             return False

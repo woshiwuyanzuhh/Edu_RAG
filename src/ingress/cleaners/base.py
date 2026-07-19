@@ -19,6 +19,7 @@
 辅助工具（供子类复用）：
     - _filter_lines: 按一组断言逐行过滤，命中任一断言的行被丢弃
 """
+
 import re
 from collections.abc import Callable
 
@@ -99,8 +100,13 @@ class BaseCleaner(ICleaner):
     def _remove_html_tags(text: str) -> str:
         text = re.sub(r"<[^>]+>", "", text)
         entities = {
-            "&nbsp;": " ", "&amp;": "&", "&lt;": "<",
-            "&gt;": ">", "&quot;": '"', "&apos;": "'", "&#160;": " ",
+            "&nbsp;": " ",
+            "&amp;": "&",
+            "&lt;": "<",
+            "&gt;": ">",
+            "&quot;": '"',
+            "&apos;": "'",
+            "&#160;": " ",
         }
         for ent, repl in entities.items():
             text = text.replace(ent, repl)
@@ -162,7 +168,8 @@ class BaseCleaner(ICleaner):
     @staticmethod
     def _jaccard(a: str, b: str, n: int = 2) -> float:
         def _grams(s):
-            return {s[i:i + n] for i in range(len(s) - n + 1)}
+            return {s[i : i + n] for i in range(len(s) - n + 1)}
+
         sa, sb = _grams(a), _grams(b)
         if not sa or not sb:
             return 0.0

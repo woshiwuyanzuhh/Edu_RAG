@@ -7,9 +7,11 @@
 解决问题 #7: 上下文质量优先于上下文长度 —
     去重、过滤低分、压缩冗余。
 """
+
 import logging
-from src.shared.config import settings
+
 from src.interfaces.vector_store import SearchResult
+from src.shared.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ def deduplicate_by_text(hits: list[SearchResult], prefix_len: int = 120) -> list
 
 
 def lost_in_middle_reorder(hits: list[SearchResult]) -> list[SearchResult]:
-    """"Lost in the Middle" 上下文重排。
+    """ "Lost in the Middle" 上下文重排。
 
     ⚠️ DEPRECATED (Opt-11): 此实现已迁移至 generation/context/lost_middle.py。
     新代码请使用 ContextPipeline + LostInMiddleReorder。

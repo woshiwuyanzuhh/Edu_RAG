@@ -2,8 +2,10 @@
 
 变更 (Phase 3 P2-9): 优先使用 Alembic 迁移，fallback create_all。
 """
+
 import logging
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.shared.config import settings
 
@@ -39,9 +41,11 @@ async def init_mysql() -> None:
 
     # P2-9: 优先 Alembic 迁移
     try:
-        from alembic.config import Config
-        from alembic import command
         from pathlib import Path
+
+        from alembic.config import Config
+
+        from alembic import command
 
         alembic_ini = Path(__file__).resolve().parent.parent.parent.parent / "alembic.ini"
         if alembic_ini.exists():
@@ -55,6 +59,7 @@ async def init_mysql() -> None:
 
     # Fallback: 自动建表
     from src.shared.models.orm import Base
+
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("mysql_create_all_complete (fallback)")

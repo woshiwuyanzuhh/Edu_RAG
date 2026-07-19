@@ -1,4 +1,5 @@
 """文本分块器抽象。"""
+
 from abc import ABC, abstractmethod
 
 

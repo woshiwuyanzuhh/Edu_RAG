@@ -1,6 +1,7 @@
 """
 安全模块 — 密钥校验、密码强度检测、敏感信息脱敏。
 """
+
 import logging
 
 from src.shared.config import Settings
@@ -10,8 +11,16 @@ logger = logging.getLogger(__name__)
 
 # ── 弱密码模式 ──
 WEAK_PASSWORDS = {
-    "123456", "password", "admin", "root", "12345678",
-    "123456789", "qwerty", "abc123", "111111", "000000",
+    "123456",
+    "password",
+    "admin",
+    "root",
+    "12345678",
+    "123456789",
+    "qwerty",
+    "abc123",
+    "111111",
+    "000000",
 }
 
 

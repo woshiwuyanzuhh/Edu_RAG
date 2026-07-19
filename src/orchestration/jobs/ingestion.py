@@ -3,8 +3,9 @@
 This module keeps API handlers thin and gives future queue workers a stable
 entry point for document processing.
 """
-import os
+
 import logging
+import os
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

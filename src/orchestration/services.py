@@ -5,8 +5,9 @@ import ingress/retrieval/generation 内部模块。
 
 所有服务实例在此处惰性创建，确保 settings 在实例化前已加载。
 """
-from src.interfaces.ingestion_service import IIngestionService
+
 from src.interfaces.generation_service import IGenerationService
+from src.interfaces.ingestion_service import IIngestionService
 from src.interfaces.retrieval_service import IRetrievalService
 
 # 全局单例（惰性初始化）
@@ -22,6 +23,7 @@ def get_ingestion_service() -> IIngestionService:
         from src.ingress import IngestionService
         from src.retrieval.embedder import get_embedder
         from src.retrieval.vector_store import get_vector_store
+
         _ingestion_svc = IngestionService(
             embedder=get_embedder(),
             vector_store=get_vector_store(),
@@ -35,6 +37,7 @@ def get_generation_service() -> IGenerationService:
     if _generation_svc is None:
         from src.generation import GenerationService
         from src.providers.llm import OpenAICompatClient
+
         _retrieval_svc = get_retrieval_service()
         _generation_svc = GenerationService(
             llm_client=OpenAICompatClient(),
@@ -47,10 +50,11 @@ def get_retrieval_service() -> IRetrievalService:
     """获取 Retrieval 服务单例。"""
     global _retrieval_svc
     if _retrieval_svc is None:
-        from src.retrieval.service import RetrievalService
-        from src.retrieval.embedder import get_embedder
-        from src.retrieval.vector_store import get_vector_store
         from src.providers.llm import OpenAICompatClient
+        from src.retrieval.embedder import get_embedder
+        from src.retrieval.service import RetrievalService
+        from src.retrieval.vector_store import get_vector_store
+
         _retrieval_svc = RetrievalService(
             embedder=get_embedder(),
             vector_store=get_vector_store(),

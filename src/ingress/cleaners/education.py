@@ -1,5 +1,7 @@
 """教育文档清洗器 — 在通用清洗基础上增加页码/水印/参考文献过滤。"""
+
 import re
+
 from src.ingress.cleaners.base import BaseCleaner
 
 
@@ -38,8 +40,15 @@ class EducationCleaner(BaseCleaner):
     @staticmethod
     def _is_watermark(line: str) -> bool:
         keywords = [
-            "内部资料", "请勿外传", "机密", "绝密", "Confidential",
-            "仅供内部使用", "版权所有", "翻印必究", "不得转载",
+            "内部资料",
+            "请勿外传",
+            "机密",
+            "绝密",
+            "Confidential",
+            "仅供内部使用",
+            "版权所有",
+            "翻印必究",
+            "不得转载",
         ]
         return any(kw in line for kw in keywords)
 

@@ -2,6 +2,7 @@
 
 解决问题：原则 #3 — 新增功能 = 新增 Step 类 + 注册到管线，不改现有代码。
 """
+
 import logging
 from typing import TYPE_CHECKING
 
@@ -26,7 +27,7 @@ class ContextPipeline:
     """
 
     def __init__(self, steps: list["IContextProcessor"] | None = None):
-        self._steps: list["IContextProcessor"] = steps or []
+        self._steps: list[IContextProcessor] = steps or []
 
     @property
     def steps(self) -> list["IContextProcessor"]:

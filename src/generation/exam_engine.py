@@ -8,13 +8,15 @@
 变更 (Opt-13): 接入 ContextPipeline — 考试上下文也走管线增强。
 P2-2: 抽取 _prepare_exam_context 消除 generate_exam / generate_exam_stream 重复；JSON 解析改用 shared.json_utils。
 """
-import logging
-from typing import AsyncGenerator, TYPE_CHECKING
 
-from src.interfaces.llm import ILLMClient, Message
-from src.interfaces.retrieval_service import IRetrievalService
+import logging
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
+
 from src.generation.prompts.exam_generate import EXAM_GENERATE_PROMPT
 from src.generation.prompts.exam_grade import GRADE_PROMPT
+from src.interfaces.llm import ILLMClient, Message
+from src.interfaces.retrieval_service import IRetrievalService
 from src.shared.json_utils import parse_llm_json
 
 if TYPE_CHECKING:
@@ -50,12 +52,14 @@ async def _prepare_exam_context(
         hits = await retrieval_svc.retrieve(
             query=f"{question_type} {difficulty} 考试题目",
             knowledge_base_id=knowledge_base_id,
-            top_k=10, use_rerank=False,
+            top_k=10,
+            use_rerank=False,
         )
         if hits:
             chunks = [{"text": h.text, "score": h.score, "metadata": h.metadata or {}} for h in hits]
             enhanced = await pipeline.process(chunks, f"{difficulty}难度{question_type}")
             from src.generation.qa_engine import _chunks_to_context
+
             context = _chunks_to_context(enhanced)
 
     # 2. 构造 prompt
@@ -81,7 +85,12 @@ async def generate_exam(
     """生成考试题目。"""
     # P2-2: 使用抽取的 _prepare_exam_context
     prompt = await _prepare_exam_context(
-        knowledge_base_id, retrieval_svc, question_type, question_count, difficulty, pipeline,
+        knowledge_base_id,
+        retrieval_svc,
+        question_type,
+        question_count,
+        difficulty,
+        pipeline,
     )
 
     # 3. 调用 LLM
@@ -110,7 +119,12 @@ async def generate_exam_stream(
     """流式出题。"""
     # P2-2: 使用抽取的 _prepare_exam_context
     prompt = await _prepare_exam_context(
-        knowledge_base_id, retrieval_svc, question_type, question_count, difficulty, pipeline,
+        knowledge_base_id,
+        retrieval_svc,
+        question_type,
+        question_count,
+        difficulty,
+        pipeline,
     )
 
     async for token in llm_client.chat_stream(
@@ -158,10 +172,7 @@ async def grade_exam(
         ref += f"\n参考答案: {q.get('answer', '')}"
         reference_parts.append(ref)
 
-    student_parts = [
-        f"第{a.get('number', '?')}题答案: {a.get('answer', '')}"
-        for a in student_answers
-    ]
+    student_parts = [f"第{a.get('number', '?')}题答案: {a.get('answer', '')}" for a in student_answers]
 
     prompt = GRADE_PROMPT.format(
         context=context,
@@ -204,6 +215,7 @@ async def grade_exam(
 
 
 # ── 工具函数 ──
+
 
 def _score_summary(total_score: float) -> str:
     """分数段位总结。"""

@@ -1,4 +1,5 @@
 """Embedding 实现 — 延迟导入避免强制依赖。"""
+
 from src.retrieval.embedder.ollama import OllamaEmbedder
 from src.shared.config import settings
 
@@ -11,6 +12,7 @@ def get_embedder() -> "IEmbedder":
     if _default_embedder is None:
         if settings.embedding.provider == "local":
             from src.retrieval.embedder.local_st import LocalSTEmbedder
+
             _default_embedder = LocalSTEmbedder()
         else:
             _default_embedder = OllamaEmbedder()

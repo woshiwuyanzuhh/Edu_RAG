@@ -4,9 +4,11 @@
     1. LLM 生成内容中的引用标注（[1] [2]）是否对应真实的检索结果
     2. 输出中是否包含不应出现的内容（简单敏感词过滤）
 """
-import re
+
 import logging
-from src.interfaces.guardrail import IGuardrail, GuardResult
+import re
+
+from src.interfaces.guardrail import GuardResult, IGuardrail
 
 logger = logging.getLogger(__name__)
 

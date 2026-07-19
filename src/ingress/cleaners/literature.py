@@ -6,6 +6,7 @@
     - 不过滤短行（诗歌、对话可能很短）
     - 保留引号内的内容
 """
+
 import re
 
 from src.ingress.cleaners.base import BaseCleaner
@@ -20,10 +21,13 @@ class LiteratureCleaner(BaseCleaner):
 
     def clean(self, text: str) -> str:
         text = super().clean(text)
-        text = self._filter_lines(text, [
-            self._is_ocr_garbage,
-            self._is_chapter_noise,
-        ])
+        text = self._filter_lines(
+            text,
+            [
+                self._is_ocr_garbage,
+                self._is_chapter_noise,
+            ],
+        )
         return text
 
     @staticmethod

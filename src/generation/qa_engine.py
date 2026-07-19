@@ -5,15 +5,17 @@
 变更 (Phase 2 P1-5): 新增可选 ContextPipeline 参数，支持可插拔上下文增强步骤链。
 P2-2: 抽取 _prepare_qa_context 消除 qa_non_stream / qa_stream 重复逻辑；合并 _build_sources。
 """
+
 import json
 import logging
-from typing import AsyncGenerator, TYPE_CHECKING
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
 
-from src.shared.config import settings
-from src.interfaces.llm import ILLMClient, Message
-from src.interfaces.vector_store import SearchResult
-from src.interfaces.retrieval_service import IRetrievalService
 from src.generation.prompts.qa import QA_SYSTEM_PROMPT
+from src.interfaces.llm import ILLMClient, Message
+from src.interfaces.retrieval_service import IRetrievalService
+from src.interfaces.vector_store import SearchResult
+from src.shared.config import settings
 
 if TYPE_CHECKING:
     from src.generation.context.pipeline import ContextPipeline
@@ -23,10 +25,7 @@ logger = logging.getLogger(__name__)
 
 def _hits_to_chunks(hits: list[SearchResult]) -> list[dict]:
     """SearchResult → chunk dict（管线输入格式）。"""
-    return [
-        {"text": h.text, "score": h.score, "metadata": h.metadata or {}}
-        for h in hits
-    ]
+    return [{"text": h.text, "score": h.score, "metadata": h.metadata or {}} for h in hits]
 
 
 def _chunks_to_context(chunks: list[dict], max_chunks: int | None = None) -> str:
@@ -54,12 +53,14 @@ def _build_sources(items: list[SearchResult] | list[dict]) -> list[dict]:
             metadata = item.get("metadata", {})
             text = item.get("text", "")
             score = item.get("score", 0)
-        result.append({
-            "doc_id": metadata.get("doc_id", "?"),
-            "chunk_index": metadata.get("chunk_index", 0),
-            "score": round(score, 2),
-            "text_preview": text[:200],
-        })
+        result.append(
+            {
+                "doc_id": metadata.get("doc_id", "?"),
+                "chunk_index": metadata.get("chunk_index", 0),
+                "score": round(score, 2),
+                "text_preview": text[:200],
+            }
+        )
     return result
 
 
@@ -88,8 +89,10 @@ async def _prepare_qa_context(
 
     if pipeline is not None:
         hits = await retrieval_svc.retrieve(
-            query=question, knowledge_base_id=knowledge_base_id,
-            top_k=top_k, use_rerank=use_rerank,
+            query=question,
+            knowledge_base_id=knowledge_base_id,
+            top_k=top_k,
+            use_rerank=use_rerank,
         )
         if not hits:
             return "", [], None
@@ -107,8 +110,10 @@ async def _prepare_qa_context(
         sources = _build_sources(enhanced)
     else:
         result = await retrieval_svc.retrieve_with_context(
-            query=question, knowledge_base_id=knowledge_base_id,
-            top_k=top_k, use_rerank=use_rerank,
+            query=question,
+            knowledge_base_id=knowledge_base_id,
+            top_k=top_k,
+            use_rerank=use_rerank,
         )
         hits, context = result["hits"], result["context"]
         if not hits:
@@ -132,7 +137,13 @@ async def qa_non_stream(
     """非流式 RAG 问答。"""
     # P2-2: 使用抽取的 _prepare_qa_context 消除重复
     context, sources, block_reason = await _prepare_qa_context(
-        question, retrieval_svc, knowledge_base_id, top_k, use_rerank, pipeline, guardrails,
+        question,
+        retrieval_svc,
+        knowledge_base_id,
+        top_k,
+        use_rerank,
+        pipeline,
+        guardrails,
     )
 
     if block_reason:
@@ -166,7 +177,13 @@ async def qa_stream(
     """流式 RAG 问答 — 返回 SSE 事件流。"""
     # P2-2: 使用抽取的 _prepare_qa_context 消除重复
     context, sources, block_reason = await _prepare_qa_context(
-        question, retrieval_svc, knowledge_base_id, top_k, use_rerank, pipeline, guardrails,
+        question,
+        retrieval_svc,
+        knowledge_base_id,
+        top_k,
+        use_rerank,
+        pipeline,
+        guardrails,
     )
 
     if block_reason:

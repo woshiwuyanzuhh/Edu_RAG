@@ -23,12 +23,12 @@
     2. 不要将 AccessKey 提交到代码中，使用环境变量
     3. 阿里云轻量服务器不自带 SLB，流量切换通过 DNS 或 Nginx 实现
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import os
-from typing import Any
 
 logger = logging.getLogger("aliyun_dr")
 
@@ -51,6 +51,7 @@ def _check_credentials() -> bool:
 
 
 # ─── DNS 流量切换 ───
+
 
 def switch_dns_to_backup(backup_ip: str, ttl: int = 60) -> bool:
     """将 DNS 解析切换到备机 IP。
@@ -77,10 +78,9 @@ def switch_dns_to_backup(backup_ip: str, ttl: int = 60) -> bool:
         return False
 
     try:
-        from alibabacloud_alidns20150109.client import Client
         from alibabacloud_alidns20150109 import models
+        from alibabacloud_alidns20150109.client import Client
         from alibabacloud_tea_openapi.models import Config
-        import TeaException
 
         config = Config(
             access_key_id=_ACCESS_KEY_ID,
@@ -123,6 +123,7 @@ def switch_dns_to_primary(primary_ip: str, ttl: int = 600) -> bool:
 
 # ─── OSS 备份上传 ───
 
+
 def upload_to_oss(local_path: str, oss_key: str | None = None) -> str | None:
     """将本地文件上传到阿里云 OSS。
 
@@ -150,13 +151,18 @@ def upload_to_oss(local_path: str, oss_key: str | None = None) -> str | None:
 
         if oss_key is None:
             import os
+
             oss_key = f"edu_rag/backups/{os.path.basename(local_path)}"
 
         # 断点续传上传（适合大文件）
-        oss2.resumable_upload(bucket, oss_key, local_path,
-                             store=oss2.ResumableStore(root='/tmp'),
-                             multipart_threshold=10 * 1024 * 1024,  # 10MB 以上分片
-                             part_size=5 * 1024 * 1024)  # 5MB 分片
+        oss2.resumable_upload(
+            bucket,
+            oss_key,
+            local_path,
+            store=oss2.ResumableStore(root="/tmp"),
+            multipart_threshold=10 * 1024 * 1024,  # 10MB 以上分片
+            part_size=5 * 1024 * 1024,
+        )  # 5MB 分片
 
         url = f"https://{_OSS_BUCKET}.{_OSS_ENDPOINT.replace('https://', '')}/{oss_key}"
         logger.info(f"[OSS] 上传成功: {url}")
@@ -182,10 +188,14 @@ def download_from_oss(oss_key: str, local_path: str) -> bool:
         auth = oss2.Auth(_ACCESS_KEY_ID, _ACCESS_KEY_SECRET)
         bucket = oss2.Bucket(auth, _OSS_ENDPOINT, _OSS_BUCKET)
 
-        oss2.resumable_download(bucket, oss_key, local_path,
-                               store=oss2.ResumableStore(root='/tmp'),
-                               multipart_threshold=10 * 1024 * 1024,
-                               part_size=5 * 1024 * 1024)
+        oss2.resumable_download(
+            bucket,
+            oss_key,
+            local_path,
+            store=oss2.ResumableStore(root="/tmp"),
+            multipart_threshold=10 * 1024 * 1024,
+            part_size=5 * 1024 * 1024,
+        )
         logger.info(f"[OSS] 下载成功: {oss_key} → {local_path}")
         return True
 
@@ -198,6 +208,7 @@ def download_from_oss(oss_key: str, local_path: str) -> bool:
 
 
 # ─── 云监控自定义指标 ───
+
 
 def report_metric(metric_name: str, value: float, dimensions: dict | None = None) -> bool:
     """上报自定义监控指标到阿里云云监控（CMS）。
@@ -214,8 +225,8 @@ def report_metric(metric_name: str, value: float, dimensions: dict | None = None
         return False
 
     try:
-        from alibabacloud_cms20190101.client import Client
         from alibabacloud_cms20190101 import models
+        from alibabacloud_cms20190101.client import Client
         from alibabacloud_tea_openapi.models import Config
 
         config = Config(
@@ -235,7 +246,7 @@ def report_metric(metric_name: str, value: float, dimensions: dict | None = None
         ]
 
         request = models.PutCustomMetricRequest(metric_list=dims)
-        response = client.put_custom_metric(request)
+        client.put_custom_metric(request)
         logger.info(f"[CMS] 指标上报: {metric_name}={value}")
         return True
 
@@ -248,6 +259,7 @@ def report_metric(metric_name: str, value: float, dimensions: dict | None = None
 
 
 # ─── 飞书/钉钉/企业微信 webhook ───
+
 
 def send_feishu_alert(webhook_url: str, title: str, content: str) -> bool:
     """发送飞书 webhook 告警。
@@ -289,8 +301,7 @@ def send_feishu_alert(webhook_url: str, title: str, content: str) -> bool:
         return False
 
 
-def send_dingtalk_alert(webhook_url: str, title: str, content: str,
-                        at_all: bool = False) -> bool:
+def send_dingtalk_alert(webhook_url: str, title: str, content: str, at_all: bool = False) -> bool:
     """发送钉钉 webhook 告警。
 
     Args:
@@ -351,6 +362,7 @@ def send_wechat_alert(webhook_url: str, content: str) -> bool:
 
 # ─── 阿里云轻量服务器快照备份 ───
 
+
 def create_lighthouse_snapshot(instance_id: str, snapshot_name: str) -> str | None:
     """创建阿里云轻量服务器磁盘快照。
 
@@ -371,8 +383,8 @@ def create_lighthouse_snapshot(instance_id: str, snapshot_name: str) -> str | No
         return None
 
     try:
-        from alibabacloud_lighthouse20201230.client import Client
         from alibabacloud_lighthouse20201230 import models
+        from alibabacloud_lighthouse20201230.client import Client
         from alibabacloud_tea_openapi.models import Config
 
         config = Config(

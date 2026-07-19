@@ -10,7 +10,9 @@ Phase 4 P3-2: 让 LLM 生成一个假设性答案，用假设答案做 embedding
     现下沉到 Generation 层，修复分层违规。Orchestration 层如需调用，
     应通过 IGenerationService 接口，而非直接 import 本模块。
 """
+
 import logging
+
 from src.interfaces.llm import ILLMClient, Message
 
 logger = logging.getLogger(__name__)

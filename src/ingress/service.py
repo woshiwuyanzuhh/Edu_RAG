@@ -4,17 +4,20 @@
 
 解决问题：原则 #2 — Orchestration 层通过此门面调用，不再直接 import ingress 内部模块。
 """
+
 import logging
 from pathlib import Path
 
-from src.interfaces.ingestion_service import IIngestionService, IngestionResult
-from src.interfaces.embedder import IEmbedder
-from src.interfaces.vector_store import IVectorStore, VectorItem
-from src.ingress.pipeline import run_ingestion, IngestionResult as PipelineResult
 from src.ingress.parsers import PARSER_REGISTRY
-from src.shared.exceptions import UnsupportedFileType, EmptyDocumentError
-from src.retrieval.keyword import build_bm25 as build_shared_bm25, delete_bm25_documents
+from src.ingress.pipeline import IngestionResult as PipelineResult
+from src.ingress.pipeline import run_ingestion
+from src.interfaces.embedder import IEmbedder
+from src.interfaces.ingestion_service import IIngestionService, IngestionResult
+from src.interfaces.vector_store import IVectorStore, VectorItem
+from src.retrieval.keyword import build_bm25 as build_shared_bm25
+from src.retrieval.keyword import delete_bm25_documents
 from src.shared.cache import cache_strategy
+from src.shared.exceptions import EmptyDocumentError, UnsupportedFileType
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +48,12 @@ class IngestionService(IIngestionService):
 
         # 2. 执行写入管线（parse → clean → chunk → filter）
         pipeline_result: PipelineResult = await run_ingestion(
-            file_path=file_path, doc_id=doc_id, kb_id=kb_id,
-            doc_type=doc_type, chunk_size=chunk_size, chunk_overlap=chunk_overlap,
+            file_path=file_path,
+            doc_id=doc_id,
+            kb_id=kb_id,
+            doc_type=doc_type,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
         )
 
         if not pipeline_result.chunks:
@@ -99,8 +106,9 @@ class IngestionService(IIngestionService):
 
         logger.info(f"ingestion_complete doc_id={doc_id} chunks={len(chunk_texts)}")
         return IngestionResult(
-            chunks=[{"text": c.text, "chunk_index": c.chunk_index, "metadata": c.metadata}
-                    for c in pipeline_result.chunks],
+            chunks=[
+                {"text": c.text, "chunk_index": c.chunk_index, "metadata": c.metadata} for c in pipeline_result.chunks
+            ],
             total_chars=pipeline_result.total_chars,
             original_chars=pipeline_result.original_chars,
             chunk_count=len(pipeline_result.chunks),

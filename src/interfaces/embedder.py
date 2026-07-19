@@ -1,4 +1,5 @@
 """Embedding 生成器抽象。"""
+
 from abc import ABC, abstractmethod
 
 

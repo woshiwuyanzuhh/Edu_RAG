@@ -3,15 +3,16 @@
 使用原生 AsyncOpenAI SDK，避免同步 SDK + to_thread/threading 的线程开销。
 通过 asyncio.Semaphore 限制并发请求数，防止压测时触发 LLM API 速率限制。
 """
+
 import asyncio
 import logging
 
 from openai import AsyncOpenAI
 
 from src.interfaces.llm import ILLMClient, Message
+from src.observability.metrics import LLM_LATENCY
 from src.providers.llm.resilience import _is_retryable, with_retry
 from src.shared.config import settings
-from src.observability.metrics import LLM_LATENCY
 
 logger = logging.getLogger(__name__)
 
@@ -108,11 +109,8 @@ class OpenAICompatClient(ILLMClient):
                     return
             except Exception as e:
                 if attempt < max_retries and _is_retryable(e):
-                    delay = 1.0 * (backoff ** attempt)
-                    logger.warning(
-                        f"stream_retry attempt={attempt + 1}/{max_retries} "
-                        f"delay={delay:.1f}s error={e}"
-                    )
+                    delay = 1.0 * (backoff**attempt)
+                    logger.warning(f"stream_retry attempt={attempt + 1}/{max_retries} delay={delay:.1f}s error={e}")
                     await asyncio.sleep(delay)
                     continue
                 logger.error(f"llm_stream_connect_failed error={e}")

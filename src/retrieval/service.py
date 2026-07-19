@@ -4,23 +4,25 @@
     - 架构原则 #4: 检索与生成解耦，Generation 层只依赖 IRetrievalService 接口
     - 消除 exam_engine / qa_engine 对 retrieval 内部模块的直接 import
 """
+
 import asyncio
 import logging
 
-from src.shared.config import settings
-from src.interfaces.retrieval_service import IRetrievalService
-from src.observability.decorators import traced
 from src.interfaces.embedder import IEmbedder
-from src.interfaces.vector_store import IVectorStore, SearchResult
 from src.interfaces.llm import ILLMClient
 from src.interfaces.query_expander import IQueryExpander
+from src.interfaces.retrieval_service import IRetrievalService
+from src.interfaces.vector_store import IVectorStore, SearchResult
+from src.observability import Tracer
+from src.observability.decorators import traced
+from src.observability.metrics import RETRIEVAL_LATENCY
+from src.retrieval.filters import build_context, deduplicate_by_text
+from src.retrieval.keyword import build_bm25 as build_bm25_index
+from src.retrieval.keyword import get_bm25
+from src.retrieval.query.expander import LLMQueryExpander
 from src.retrieval.recall import recall
 from src.retrieval.rerank import llm_rerank
-from src.retrieval.filters import build_context, deduplicate_by_text
-from src.retrieval.query.expander import LLMQueryExpander
-from src.retrieval.keyword import get_bm25, build_bm25 as build_bm25_index
-from src.observability import Tracer
-from src.observability.metrics import RETRIEVAL_LATENCY
+from src.shared.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -96,9 +98,7 @@ class RetrievalService(IRetrievalService):
             async with tracer.span("keyword") as span:
                 with RETRIEVAL_LATENCY.labels(stage="keyword").time():
                     bm25 = get_bm25(knowledge_base_id)
-                    kw_results = await asyncio.to_thread(
-                        bm25.search, query, top_k=max(top_k * 2, 10)
-                    )
+                    kw_results = await asyncio.to_thread(bm25.search, query, top_k=max(top_k * 2, 10))
                 max_score = max((score for _, score in kw_results), default=1.0) or 1.0
                 # 映射 BM25 结果到 SearchResult
                 kw_hits = []
@@ -142,9 +142,7 @@ class RetrievalService(IRetrievalService):
         return bm25 is not None and bm25.doc_count > 0
 
     @staticmethod
-    def _rrf_fuse(
-        vec_hits: list[SearchResult], kw_hits: list[SearchResult], k: int = 60
-    ) -> list[SearchResult]:
+    def _rrf_fuse(vec_hits: list[SearchResult], kw_hits: list[SearchResult], k: int = 60) -> list[SearchResult]:
         """RRF (Reciprocal Rank Fusion) 融合双路召回结果。"""
         rrf_scores: dict[str, float] = {}
         id_map: dict[str, SearchResult] = {}
@@ -162,10 +160,14 @@ class RetrievalService(IRetrievalService):
         result = []
         for doc_id, rrf_score in fused:
             h = id_map[doc_id]
-            result.append(SearchResult(
-                id=h.id, text=h.text, score=round(rrf_score, 4),
-                metadata={**h.metadata, "rrf_score": round(rrf_score, 4)},
-            ))
+            result.append(
+                SearchResult(
+                    id=h.id,
+                    text=h.text,
+                    score=round(rrf_score, 4),
+                    metadata={**h.metadata, "rrf_score": round(rrf_score, 4)},
+                )
+            )
         return result
 
     async def retrieve_with_context(
@@ -177,8 +179,10 @@ class RetrievalService(IRetrievalService):
         use_rerank: bool = True,
     ) -> dict:
         hits = await self.retrieve(
-            query=query, knowledge_base_id=knowledge_base_id,
-            top_k=top_k, use_rerank=use_rerank,
+            query=query,
+            knowledge_base_id=knowledge_base_id,
+            top_k=top_k,
+            use_rerank=use_rerank,
         )
         context = build_context(hits) if hits else ""
         return {"hits": hits, "context": context}
@@ -192,11 +196,18 @@ class RetrievalService(IRetrievalService):
     ) -> str:
         # 多角度并行召回
         queries = ["关键概念 定义 原理", "方法 步骤 流程", "应用 案例 示例"]
-        results = await asyncio.gather(*[
-            recall(query=q, embedder=self._embedder, vector_store=self._vector_store,
-                   top_k=5, knowledge_base_id=knowledge_base_id)
-            for q in queries
-        ])
+        results = await asyncio.gather(
+            *[
+                recall(
+                    query=q,
+                    embedder=self._embedder,
+                    vector_store=self._vector_store,
+                    top_k=5,
+                    knowledge_base_id=knowledge_base_id,
+                )
+                for q in queries
+            ]
+        )
         all_hits = [h for hits in results for h in hits]
 
         unique = deduplicate_by_text(all_hits)

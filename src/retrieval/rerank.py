@@ -4,11 +4,12 @@
 解决问题 #10: 截断策略改进 — 取首尾各 150 字符，不丢失尾部信息。
 解决问题 #11: 分数融合 — final = α × LLM_score + (1-α) × vector_score。
 """
+
 import logging
 
-from src.shared.config import settings
-from src.interfaces.vector_store import SearchResult
 from src.interfaces.llm import ILLMClient, Message
+from src.interfaces.vector_store import SearchResult
+from src.shared.config import settings
 from src.shared.json_utils import try_parse_llm_json
 
 logger = logging.getLogger(__name__)
@@ -121,16 +122,18 @@ async def llm_rerank(
                 llm_score = 0.0
             original_vec_score = c.score
             fused_score = round(fusion_alpha * llm_score + (1 - fusion_alpha) * original_vec_score, 4)
-            fused.append(SearchResult(
-                id=c.id,
-                text=c.text,
-                score=fused_score,
-                metadata={
-                    **c.metadata,
-                    "llm_score": llm_score,
-                    "vector_score": original_vec_score,
-                },
-            ))
+            fused.append(
+                SearchResult(
+                    id=c.id,
+                    text=c.text,
+                    score=fused_score,
+                    metadata={
+                        **c.metadata,
+                        "llm_score": llm_score,
+                        "vector_score": original_vec_score,
+                    },
+                )
+            )
 
     logger.debug(f"rerank_complete before={len(candidates)} after={len(fused)}")
     return fused[:top_k]

@@ -11,7 +11,9 @@ API Key 鉴权中间件。
     - 生产模式（debug=False）下未配置 API Key 时拒绝所有非公开请求（fail-closed）
     - 开发模式（debug=True）下未配置 API Key 时跳过鉴权，便于本地调试
 """
+
 import logging
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -21,7 +23,16 @@ from src.shared.config import settings
 logger = logging.getLogger(__name__)
 
 # 无需鉴权的路径
-PUBLIC_PATHS = {"/health", "/health/live", "/health/ready", "/nginx-health", "/docs", "/openapi.json", "/redoc", "/favicon.ico"}
+PUBLIC_PATHS = {
+    "/health",
+    "/health/live",
+    "/health/ready",
+    "/nginx-health",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+    "/favicon.ico",
+}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -47,8 +58,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 logger.debug("auth_skipped_debug_mode path=%s", path)
                 return await call_next(request)
             # 生产模式：拒绝访问（fail-closed）
-            logger.error("auth_blocked_no_api_key path=%s ip=%s", path,
-                         request.client.host if request.client else "unknown")
+            logger.error(
+                "auth_blocked_no_api_key path=%s ip=%s", path, request.client.host if request.client else "unknown"
+            )
             return JSONResponse(
                 status_code=503,
                 content={"success": False, "message": "服务未配置鉴权密钥，拒绝访问", "data": None},
@@ -58,8 +70,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         provided_key = request.headers.get("X-API-Key")
 
         if not provided_key or provided_key != api_key:
-            logger.warning("auth_failed path=%s ip=%s", path,
-                           request.client.host if request.client else "unknown")
+            logger.warning("auth_failed path=%s ip=%s", path, request.client.host if request.client else "unknown")
             return JSONResponse(
                 status_code=401,
                 content={"success": False, "message": "未授权访问，请提供有效的 API Key", "data": None},

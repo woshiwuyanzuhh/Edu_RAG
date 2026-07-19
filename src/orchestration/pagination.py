@@ -3,6 +3,7 @@
 
 解决问题 #8: 所有列表接口强制分页。
 """
+
 import math
 from typing import TypeVar
 
@@ -54,11 +55,12 @@ def get_offset_limit(page: int = 1, page_size: int = 20) -> tuple[int, int]:
 
 
 # P2-2: 通用分页查询 — 抽取 4 个列表端点的 count + select + offset/limit 重复模式
-from typing import TYPE_CHECKING, Callable, Any
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy import ColumnElement
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def paginated_select(
@@ -84,7 +86,7 @@ async def paginated_select(
     Returns:
         PaginatedResponse，可直接 .model_dump() 返回给前端
     """
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
 
     # count 查询
     count_query = select(func.count(model.id))

@@ -5,9 +5,11 @@
     - "system prompt" 泄露尝试
     - "DAN" / jailbreak 关键词
 """
-import re
+
 import logging
-from src.interfaces.guardrail import IGuardrail, GuardResult
+import re
+
+from src.interfaces.guardrail import GuardResult, IGuardrail
 
 logger = logging.getLogger(__name__)
 
